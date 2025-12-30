@@ -11,7 +11,7 @@ export default function AdminLayout({
       <Sidebar />
       <div className="flex-1">
         <Navbar />
-        <main className="p-6 bg-gray-100 min-h-screen">
+        <main className="p-6 bg-gradient-to-br from-gray-900 via-gray-800 to-black p-6 text-white min-h-screen">
           {children}
         </main>
       </div>

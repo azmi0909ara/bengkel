@@ -46,7 +46,7 @@ export default function Sidebar() {
       {/* LOGO */}
       <div className="px-6 py-8 border-b border-gray-800">
         <h1 className="text-2xl font-extrabold tracking-widest">
-          BENGKEL<span className="text-red-500">PRO</span>
+          AWANS<span className="text-red-500">`S</span>
         </h1>
         <p className="text-xs text-gray-400 mt-1">
           Automotive Admin System
@@ -86,7 +86,7 @@ export default function Sidebar() {
 
       {/* FOOTER */}
       <div className="px-6 py-4 border-t border-gray-800 text-xs text-gray-500">
-        © 2025 BengkelPro
+        © 2025 AwansService
       </div>
     </aside>
   )

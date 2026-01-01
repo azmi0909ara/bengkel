@@ -34,7 +34,7 @@ export default function LoginPage() {
         {/* LOGO / TITLE */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white tracking-wide">
-            BENGKEL<span className="text-red-500">PRO</span>
+            AWANS<span className="text-red-500">SERVICE</span>
           </h1>
           <p className="text-gray-400 text-sm mt-2">
             Admin Management System
@@ -82,7 +82,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center text-gray-500 text-xs mt-6">
-          © 2025 BengkelPro System
+          © 2025 AwansService System
         </p>
       </div>
     </div>

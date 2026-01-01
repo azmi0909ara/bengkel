@@ -12,26 +12,49 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
-type Stok = {
+type Sparepart = {
   id: string
-  nama: string
+  id_sparepart: string
+  kode_sparepart: string
+  nama_sparepart: string
+  merk: string
   kategori: string
   stok: number
-  harga: number
+  satuan: string
+  harga_beli: number
+  harga_jual: number
+  keterangan: string
 }
 
+const KATEGORI = [
+  'Mesin',
+  'Pengereman',
+  'Kelistrikan',
+  'Suspensi & Kemudi',
+  'Sistem AC',
+  'Lain-lain',
+]
+
 export default function StokPage() {
-  const [data, setData] = useState<Stok[]>([])
+  const [data, setData] = useState<Sparepart[]>([])
   const [search, setSearch] = useState('')
+  const [editId, setEditId] = useState<string | null>(null)
+  const [detail, setDetail] = useState<Sparepart | null>(null)
+
   const [form, setForm] = useState({
-    nama: '',
+    id_sparepart: '',
+    kode_sparepart: '',
+    nama_sparepart: '',
+    merk: '',
     kategori: '',
     stok: '',
-    harga: '',
+    satuan: '',
+    harga_beli: '',
+    harga_jual: '',
+    keterangan: '',
   })
-  const [editId, setEditId] = useState<string | null>(null)
 
-  // Fetch data
+  // ================= FETCH =================
   const fetchData = async () => {
     const snap = await getDocs(collection(db, 'stok'))
     setData(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
@@ -41,15 +64,21 @@ export default function StokPage() {
     fetchData()
   }, [])
 
-  // Submit
+  // ================= SUBMIT =================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     const payload = {
-      nama: form.nama,
+      id_sparepart: form.id_sparepart,
+      kode_sparepart: form.kode_sparepart,
+      nama_sparepart: form.nama_sparepart,
+      merk: form.merk,
       kategori: form.kategori,
       stok: Number(form.stok),
-      harga: Number(form.harga),
+      satuan: form.satuan,
+      harga_beli: Number(form.harga_beli),
+      harga_jual: Number(form.harga_jual),
+      keterangan: form.keterangan,
     }
 
     if (editId) {
@@ -62,153 +91,149 @@ export default function StokPage() {
       })
     }
 
-    setForm({ nama: '', kategori: '', stok: '', harga: '' })
+    setForm({
+      id_sparepart: '',
+      kode_sparepart: '',
+      nama_sparepart: '',
+      merk: '',
+      kategori: '',
+      stok: '',
+      satuan: '',
+      harga_beli: '',
+      harga_jual: '',
+      keterangan: '',
+    })
+
     fetchData()
   }
 
-  const handleEdit = (item: Stok) => {
+  const handleEdit = (item: Sparepart) => {
     setEditId(item.id)
     setForm({
-      nama: item.nama,
+      id_sparepart: item.id_sparepart,
+      kode_sparepart: item.kode_sparepart,
+      nama_sparepart: item.nama_sparepart,
+      merk: item.merk,
       kategori: item.kategori,
       stok: item.stok.toString(),
-      harga: item.harga.toString(),
+      satuan: item.satuan,
+      harga_beli: item.harga_beli.toString(),
+      harga_jual: item.harga_jual.toString(),
+      keterangan: item.keterangan,
     })
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Hapus barang ini?')) return
+    if (!confirm('Hapus sparepart ini?')) return
     await deleteDoc(doc(db, 'stok', id))
     fetchData()
   }
 
-  // Filter search
+  // ================= FILTER =================
   const filteredData = data.filter(item =>
-    `${item.nama} ${item.kategori}`
+    `${item.nama_sparepart} ${item.kode_sparepart} ${item.merk}`
       .toLowerCase()
       .includes(search.toLowerCase())
   )
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black p-6 text-white">
-      <h1 className="text-2xl font-bold mb-6">Stok Barang</h1>
+      <h1 className="text-2xl font-bold mb-6">Stok Sparepart</h1>
 
       {/* FORM */}
       <form
         onSubmit={handleSubmit}
-        className="bg-gray-900 border border-gray-700 rounded-xl p-6 mb-8 grid grid-cols-2 gap-4"
+        className="bg-gray-900 border border-gray-700 rounded-xl p-6 mb-8 grid md:grid-cols-2 gap-4"
       >
-        <input
-          placeholder="Nama Barang"
-          className="bg-gray-800 border border-gray-700 rounded px-3 py-2"
-          value={form.nama}
-          onChange={e => setForm({ ...form, nama: e.target.value })}
-          required
-        />
-        <input
-          placeholder="Kategori"
-          className="bg-gray-800 border border-gray-700 rounded px-3 py-2"
-          value={form.kategori}
-          onChange={e => setForm({ ...form, kategori: e.target.value })}
-          required
-        />
-        <input
-          type="number"
-          placeholder="Stok"
-          className="bg-gray-800 border border-gray-700 rounded px-3 py-2"
-          value={form.stok}
-          onChange={e => setForm({ ...form, stok: e.target.value })}
-          required
-        />
-        <input
-          type="number"
-          placeholder="Harga"
-          className="bg-gray-800 border border-gray-700 rounded px-3 py-2"
-          value={form.harga}
-          onChange={e => setForm({ ...form, harga: e.target.value })}
-          required
-        />
+        <input placeholder="ID Sparepart" className="input" value={form.id_sparepart} onChange={e => setForm({ ...form, id_sparepart: e.target.value })} />
+        <input placeholder="Kode / No Part" className="input" value={form.kode_sparepart} onChange={e => setForm({ ...form, kode_sparepart: e.target.value })} />
 
-        <button className="col-span-2 bg-red-600 hover:bg-red-700 transition rounded py-2 font-semibold">
-          {editId ? 'Update Barang' : 'Tambah Barang'}
+        <input placeholder="Nama Sparepart" className="input" value={form.nama_sparepart} onChange={e => setForm({ ...form, nama_sparepart: e.target.value })} required />
+        <input placeholder="Merk" className="input" value={form.merk} onChange={e => setForm({ ...form, merk: e.target.value })} />
+
+        <select className="input" value={form.kategori} onChange={e => setForm({ ...form, kategori: e.target.value })} required>
+          <option value="">Pilih Kategori</option>
+          {KATEGORI.map(k => <option key={k}>{k}</option>)}
+        </select>
+
+        <input type="number" placeholder="Stok" className="input" value={form.stok} onChange={e => setForm({ ...form, stok: e.target.value })} required />
+        <input placeholder="Satuan (pcs / set)" className="input" value={form.satuan} onChange={e => setForm({ ...form, satuan: e.target.value })} />
+
+        <input type="number" placeholder="Harga Beli" className="input" value={form.harga_beli} onChange={e => setForm({ ...form, harga_beli: e.target.value })} />
+        <input type="number" placeholder="Harga Jual" className="input" value={form.harga_jual} onChange={e => setForm({ ...form, harga_jual: e.target.value })} />
+
+        <textarea placeholder="Keterangan" className="input md:col-span-2" value={form.keterangan} onChange={e => setForm({ ...form, keterangan: e.target.value })} />
+
+        <button className="md:col-span-2 bg-red-600 hover:bg-red-700 py-2 rounded font-semibold">
+          {editId ? 'Update Sparepart' : 'Tambah Sparepart'}
         </button>
       </form>
 
       {/* SEARCH */}
-      <div className="mb-4">
-        <input
-          placeholder="Cari nama / kategori barang..."
-          className="w-full md:w-1/3 bg-gray-800 border border-gray-700 rounded px-4 py-2"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-      </div>
+      <input
+        placeholder="Cari sparepart..."
+        className="mb-4 bg-gray-800 border border-gray-700 rounded px-4 py-2"
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+      />
 
       {/* TABLE */}
-      <div className="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-gray-800 text-gray-300 uppercase text-xs">
-              <tr>
-                <th className="px-4 py-3">Nama Barang</th>
-                <th className="px-4 py-3">Kategori</th>
-                <th className="px-4 py-3 text-center">Stok</th>
-                <th className="px-4 py-3">Harga</th>
-                <th className="px-4 py-3 text-center">Aksi</th>
+      <div className="bg-gray-900 border border-gray-700 rounded-xl overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-800 text-gray-300 uppercase text-xs">
+            <tr>
+              <th className="px-4 py-3 text-left">Nama</th>
+              <th className="px-4 py-3 text-left">Kategori</th>
+              <th className="px-4 py-3 text-center">Stok</th>
+              <th className="px-4 py-3 text-left">Harga Jual</th>
+              <th className="px-4 py-3 text-center">Aksi</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-700">
+            {filteredData.map(item => (
+              <tr key={item.id} className="hover:bg-gray-800">
+                <td className="px-4 py-3 font-medium">{item.nama_sparepart}</td>
+                <td className="px-4 py-3">{item.kategori}</td>
+                <td className="px-4 py-3 text-center">{item.stok}</td>
+                <td className="px-4 py-3">Rp {item.harga_jual.toLocaleString('id-ID')}</td>
+                <td className="px-4 py-3">
+                  <div className="flex justify-center gap-2">
+                    <button onClick={() => setDetail(item)} className="btn-view">Detail</button>
+                    <button onClick={() => handleEdit(item)} className="btn-edit">Edit</button>
+                    <button onClick={() => handleDelete(item.id)} className="btn-delete">Hapus</button>
+                  </div>
+                </td>
               </tr>
-            </thead>
-
-            <tbody className="divide-y divide-gray-700">
-              {filteredData.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="px-4 py-6 text-center text-gray-500"
-                  >
-                    Data stok tidak ditemukan
-                  </td>
-                </tr>
-              ) : (
-                filteredData.map(item => (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-gray-800 transition"
-                  >
-                    <td className="px-4 py-3 font-medium">
-                      {item.nama}
-                    </td>
-                    <td className="px-4 py-3">
-                      {item.kategori}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {item.stok}
-                    </td>
-                    <td className="px-4 py-3">
-                      Rp {item.harga.toLocaleString('id-ID')}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-center gap-3">
-                        <button
-                          onClick={() => handleEdit(item)}
-                          className="px-3 py-1 rounded bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="px-3 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition"
-                        >
-                          Hapus
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       </div>
+
+      {/* MODAL DETAIL */}
+      {detail && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-lg">
+            <h2 className="text-lg font-bold mb-4">Detail Sparepart</h2>
+            <div className="space-y-2 text-sm">
+              <p><b>Kode:</b> {detail.kode_sparepart}</p>
+              <p><b>Nama:</b> {detail.nama_sparepart}</p>
+              <p><b>Merk:</b> {detail.merk}</p>
+              <p><b>Kategori:</b> {detail.kategori}</p>
+              <p><b>Stok:</b> {detail.stok} {detail.satuan}</p>
+              <p><b>Harga Beli:</b> Rp {detail.harga_beli.toLocaleString('id-ID')}</p>
+              <p><b>Harga Jual:</b> Rp {detail.harga_jual.toLocaleString('id-ID')}</p>
+              <p><b>Keterangan:</b> {detail.keterangan || '-'}</p>
+            </div>
+
+            <button
+              onClick={() => setDetail(null)}
+              className="bg-red-600 mt-6 w-full border border-gray-600 py-2 rounded hover:bg-gray-800"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

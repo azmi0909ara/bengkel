@@ -19,16 +19,22 @@ type Pelanggan = {
 type Kendaraan = {
   id: string
   pelangganId: string
-  merk: string
-  platNomor: string
+  pelangganNama: string
+  nomorPolisi: string
+  nomorRangka: string
+  nomorMesin: string
+  merek: string
+  tipe: string
+  tahunProduksi: number
+  warna: string
+  kilometer: number
 }
 
 type Stok = {
   id: string
-  nama: string
-  kategori: string
+  nama_sparepart: string
   stok: number
-  harga: number
+  harga_jual: number
 }
 
 type SparepartDipakai = {
@@ -48,6 +54,9 @@ const JENIS_SERVIS = [
   'Tune Up',
 ]
 
+const JENIS_PEMBAYARAN = ['Tunai', 'Transfer', 'QRIS']
+const STATUS_KENDARAAN = ['DITUNGGU', 'DITINGGAL']
+
 /* ================= PAGE ================= */
 export default function ServicePage() {
   const [pelanggan, setPelanggan] = useState<Pelanggan[]>([])
@@ -56,56 +65,62 @@ export default function ServicePage() {
 
   const [selectedPelanggan, setSelectedPelanggan] = useState('')
   const [selectedKendaraan, setSelectedKendaraan] = useState('')
+
+  const [tanggal, setTanggal] = useState('')
   const [mekanik, setMekanik] = useState('')
+  const [kmSekarang, setKmSekarang] = useState<number>(0)
+  const [keluhan, setKeluhan] = useState('')
+  const [statusKendaraan, setStatusKendaraan] = useState('DITUNGGU')
+  const [jenisPembayaran, setJenisPembayaran] = useState('Tunai')
 
   const [jenisServis, setJenisServis] = useState<string[]>([])
-  const [biayaServis, setBiayaServis] = useState('')
+  const [biayaServis, setBiayaServis] = useState<number>(0)
 
   const [sparepart, setSparepart] = useState<SparepartDipakai[]>([])
+
+  const [showPreview, setShowPreview] = useState(false)
 
   /* ================= FETCH DATA ================= */
   useEffect(() => {
     const loadData = async () => {
-      const p = await getDocs(collection(db, 'pelanggan'))
-      const k = await getDocs(collection(db, 'kendaraan'))
-      const s = await getDocs(collection(db, 'stok'))
+      const pSnap = await getDocs(collection(db, 'pelanggan'))
+      const kSnap = await getDocs(collection(db, 'kendaraan'))
+      const sSnap = await getDocs(collection(db, 'stok'))
 
-      setPelanggan(p.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
-      setKendaraan(k.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
-      setStok(s.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+      setPelanggan(pSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+      setKendaraan(kSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+      setStok(sSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
     }
     loadData()
   }, [])
 
   /* ================= LOGIC ================= */
-  const toggleServis = (item: string) => {
-    setJenisServis(prev =>
-      prev.includes(item)
-        ? prev.filter(i => i !== item)
-        : [...prev, item]
+  const toggleSparepart = (item: Stok) => {
+    if (item.stok <= 0) return
+
+    const exists = sparepart.find(sp => sp.id === item.id)
+
+    if (exists) {
+      setSparepart(prev => prev.filter(sp => sp.id !== item.id))
+    } else {
+      setSparepart(prev => [
+        ...prev,
+        {
+          id: item.id,
+          nama: item.nama_sparepart,
+          harga: item.harga_jual,
+          qty: 1,
+        },
+      ])
+    }
+  }
+
+  const updateQty = (id: string, qty: number) => {
+    setSparepart(prev =>
+      prev.map(sp =>
+        sp.id === id ? { ...sp, qty: Math.max(1, qty) } : sp
+      )
     )
-  }
-
-  const addSparepart = (item: Stok) => {
-    if (item.stok === 0) return
-    if (sparepart.find(s => s.id === item.id)) return
-
-    setSparepart(prev => [
-      ...prev,
-      { id: item.id, nama: item.nama, harga: item.harga, qty: 1 },
-    ])
-  }
-
-  const updateQty = (index: number, value: number) => {
-    setSparepart(prev => {
-      const data = [...prev]
-      data[index].qty = Math.max(1, value)
-      return data
-    })
-  }
-
-  const removeSparepart = (id: string) => {
-    setSparepart(prev => prev.filter(s => s.id !== id))
   }
 
   const totalSparepart = sparepart.reduce(
@@ -113,7 +128,7 @@ export default function ServicePage() {
     0
   )
 
-  const totalBayar = Number(biayaServis || 0) + totalSparepart
+  const totalBayar = biayaServis + totalSparepart
 
   /* ================= SUBMIT ================= */
   const handleSubmit = async (e: React.FormEvent) => {
@@ -122,235 +137,207 @@ export default function ServicePage() {
     const p = pelanggan.find(p => p.id === selectedPelanggan)
     const k = kendaraan.find(k => k.id === selectedKendaraan)
 
-    if (!p || !k) return
-    if (!mekanik) return alert('Nama mekanik wajib diisi')
-    if (jenisServis.length === 0)
-      return alert('Pilih minimal satu jenis servis')
+    if (!p || !k) return alert('Data tidak valid')
 
     try {
       await runTransaction(db, async tx => {
-        /* ===== READ FIRST ===== */
-        const stokUpdates: {
-          ref: any
-          currentStok: number
-          usedQty: number
-        }[] = []
-
         for (const sp of sparepart) {
           const stokRef = doc(db, 'stok', sp.id)
           const snap = await tx.get(stokRef)
 
-          if (!snap.exists()) {
-            throw new Error(`Sparepart ${sp.nama} tidak ditemukan`)
-          }
-
-          const currentStok = snap.data().stok ?? 0
-
-          if (currentStok < sp.qty) {
+          const currentStok = snap.data()?.stok ?? 0
+          if (currentStok < sp.qty)
             throw new Error(`Stok ${sp.nama} tidak mencukupi`)
-          }
 
-          stokUpdates.push({
-            ref: stokRef,
-            currentStok,
-            usedQty: sp.qty,
+          tx.update(stokRef, {
+            stok: currentStok - sp.qty,
           })
         }
 
-        /* ===== WRITE ===== */
         const serviceRef = doc(collection(db, 'service'))
         tx.set(serviceRef, {
+          tanggal: Timestamp.fromDate(new Date(tanggal)),
           pelangganId: p.id,
           pelangganNama: p.nama,
           kendaraanId: k.id,
-          kendaraanLabel: `${k.merk} - ${k.platNomor}`,
+          kendaraanLabel: `${k.nomorPolisi} - ${k.merek}`,
           mekanikNama: mekanik,
+          kmSekarang,
+          keluhan,
+          statusKendaraan,
+          jenisPembayaran,
           jenisServis,
           sparepart,
-          biayaServis: Number(biayaServis),
+          biayaServis,
           totalSparepart,
           totalBayar,
           status: 'MENUNGGU',
           createdAt: Timestamp.now(),
         })
-
-        for (const s of stokUpdates) {
-          tx.update(s.ref, {
-            stok: s.currentStok - s.usedQty,
-          })
-        }
       })
 
       alert('Service berhasil disimpan')
-
-      setSelectedPelanggan('')
-      setSelectedKendaraan('')
-      setMekanik('')
-      setJenisServis([])
-      setSparepart([])
-      setBiayaServis('')
     } catch (err: any) {
-      alert(err.message || 'Gagal menyimpan service')
+      alert(err.message)
     }
   }
 
+  const p = pelanggan.find(p => p.id === selectedPelanggan)
+  const k = kendaraan.find(k => k.id === selectedKendaraan)
+
   /* ================= UI ================= */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black p-6 text-white">
+    <div className="min-h-screen bg-gray-950 p-6 text-white">
       <h1 className="text-2xl font-bold mb-6">Service Kendaraan</h1>
 
       <form
         onSubmit={handleSubmit}
-        className="bg-gray-900 border border-gray-700 rounded-xl p-6 space-y-6"
+        className="bg-gray-900 border border-gray-700 rounded-xl p-6 space-y-4"
       >
-        {/* PELANGGAN */}
-        <select
-          className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2"
-          value={selectedPelanggan}
-          onChange={e => setSelectedPelanggan(e.target.value)}
-          required
-        >
+        {/* --- FORM TETAP --- */}
+
+       <p className="text-sm text-gray-400 mb-2">Tanggal Service</p>
+        <input type="date" className="input" value={tanggal} onChange={e => setTanggal(e.target.value)} required />
+
+      <p className="text-sm text-gray-400 mb-2">Data Pelanggan Service</p>
+        <select className="input" value={selectedPelanggan} onChange={e => setSelectedPelanggan(e.target.value)}>
           <option value="">Pilih Pelanggan</option>
-          {pelanggan.map(p => (
-            <option key={p.id} value={p.id}>
-              {p.nama}
-            </option>
+          {pelanggan.map(p => <option key={p.id} value={p.id}>{p.nama}</option>)}
+        </select>
+
+        <select className="input" value={selectedKendaraan} onChange={e => setSelectedKendaraan(e.target.value)}>
+          <option value="">Pilih Kendaraan</option>
+          {kendaraan.filter(k => k.pelangganId === selectedPelanggan).map(k => (
+            <option key={k.id} value={k.id}>{k.nomorPolisi} - {k.merek}</option>
           ))}
         </select>
 
-        {/* KENDARAAN */}
-        <select
-          className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2"
-          value={selectedKendaraan}
-          onChange={e => setSelectedKendaraan(e.target.value)}
-          required
-        >
-          <option value="">Pilih Kendaraan</option>
-          {kendaraan
-            .filter(k => k.pelangganId === selectedPelanggan)
-            .map(k => (
-              <option key={k.id} value={k.id}>
-                {k.merk} - {k.platNomor}
-              </option>
-            ))}
+        <p className="text-sm text-gray-400 mb-2">Nama Mekanik</p>
+        <input className="input" placeholder="Nama Mekanik" value={mekanik} onChange={e => setMekanik(e.target.value)} />
+        <p className="text-sm text-gray-400 mb-2">Kilometer</p>
+        <input type="number" className="input" placeholder="KM Sekarang" value={kmSekarang} onChange={e => setKmSekarang(Number(e.target.value))} />
+        <textarea className="input" placeholder="Permintaan / Keluhan" value={keluhan} onChange={e => setKeluhan(e.target.value)} />
+        
+        <p className="text-sm text-gray-400 mb-2">Status Kendaraan</p>
+        <select className="input" value={statusKendaraan} onChange={e => setStatusKendaraan(e.target.value)}>
+          {STATUS_KENDARAAN.map(s => <option key={s}>{s}</option>)}
         </select>
+        
+        <p className="text-sm text-gray-400 mb-2">Jenis Pembayaran</p>
+        <select className="input" value={jenisPembayaran} onChange={e => setJenisPembayaran(e.target.value)}>
+          {JENIS_PEMBAYARAN.map(j => <option key={j}>{j}</option>)}
+        </select>
+        
+        <p className="text-sm text-gray-400 mb-2">Biaya Jasa Service</p>
+        <input type="number" className="input" placeholder="Biaya Jasa" value={biayaServis} onChange={e => setBiayaServis(Number(e.target.value))} />
 
-        {/* MEKANIK */}
-        <input
-          placeholder="Nama Mekanik"
-          className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2"
-          value={mekanik}
-          onChange={e => setMekanik(e.target.value)}
-          required
-        />
-
-        {/* JENIS SERVIS */}
-        <div>
-          <p className="text-sm text-gray-400 mb-2">Jenis Servis</p>
-          <div className="grid grid-cols-2 gap-2">
-            {JENIS_SERVIS.map(j => (
-              <label
-                key={j}
-                className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded px-3 py-2"
-              >
-                <input
-                  type="checkbox"
-                  checked={jenisServis.includes(j)}
-                  onChange={() => toggleServis(j)}
-                />
-                {j}
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* BIAYA */}
-        <input
-          type="number"
-          placeholder="Biaya Jasa Servis"
-          className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2"
-          value={biayaServis}
-          onChange={e => setBiayaServis(e.target.value)}
-          required
-        />
-
-        {/* SPAREPART */}
-        <div>
-          <p className="text-sm text-gray-400 mb-2">Tambah Sparepart</p>
-          <div className="flex flex-wrap gap-2">
-            {stok.map(s => (
+        {/* SPAREPART BUTTON */}
+        <p className="text-sm text-gray-400 mb-2">Tambah Sparepart</p>
+        <div className="flex flex-wrap gap-2">
+          {stok.map(s => {
+            const active = sparepart.some(sp => sp.id === s.id)
+            return (
               <button
-                type="button"
                 key={s.id}
-                disabled={s.stok === 0}
-                onClick={() => addSparepart(s)}
-                className={`px-3 py-1 border rounded ${
-                  s.stok === 0
-                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                    : 'bg-gray-800 hover:bg-gray-700'
+                type="button"
+                onClick={() => toggleSparepart(s)}
+                className={`px-3 py-1 rounded border ${
+                  active ? 'bg-red-600 border-red-500' : 'bg-gray-800 border-gray-700'
                 }`}
               >
-                {s.nama}
+                {s.nama_sparepart}
               </button>
+            )
+          })}
+        </div>
+
+        {/* TABEL SPAREPART */}
+        <table className="w-full text-sm border border-gray-700">
+          <thead className="bg-gray-800">
+            <tr>
+              <th className="p-2 text-left">Sparepart</th>
+              <th className="p-2 text-left">Qty</th>
+              <th className="p-2 text-left">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sparepart.map(sp => (
+              <tr key={sp.id} className="border-t border-gray-700">
+                <td className="p-2">{sp.nama}</td>
+                <td>
+                  <input
+                    type="number"
+                    className="w-16 bg-gray-800 text-center"
+                    value={sp.qty}
+                    onChange={e => updateQty(sp.id, Number(e.target.value))}
+                  />
+                </td>
+                <td>Rp {(sp.harga * sp.qty).toLocaleString('id-ID')}</td>
+              </tr>
             ))}
-          </div>
+          </tbody>
+        </table>
+
+        <div className="font-bold text-right">
+          Total Bayar: Rp {totalBayar.toLocaleString('id-ID')}
         </div>
 
-        {/* LIST SPAREPART */}
-        {sparepart.map((s, i) => (
-          <div
-            key={s.id}
-            className="flex items-center justify-between bg-gray-800 p-3 rounded"
+        {/* ACTION BUTTON */}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setShowPreview(true)}
+            className="w-1/2 bg-gray-700 py-2 rounded"
           >
-            <div>
-              <p className="font-semibold">{s.nama}</p>
-              <p className="text-sm text-gray-400">
-                Rp {s.harga.toLocaleString('id-ID')}
-              </p>
-            </div>
+            Preview
+          </button>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => updateQty(i, s.qty - 1)}
-                className="px-2 bg-gray-700 rounded"
-              >
-                -
-              </button>
-              <span>{s.qty}</span>
-              <button
-                type="button"
-                onClick={() => updateQty(i, s.qty + 1)}
-                className="px-2 bg-gray-700 rounded"
-              >
-                +
-              </button>
-              <button
-                type="button"
-                onClick={() => removeSparepart(s.id)}
-                className="ml-2 px-2 bg-red-600/20 text-red-400 rounded hover:bg-red-600/30"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-        ))}
-
-        {/* TOTAL */}
-        <div className="bg-black/40 border border-gray-700 rounded p-4 text-sm">
-          <p>
-            Total Sparepart: Rp{' '}
-            {totalSparepart.toLocaleString('id-ID')}
-          </p>
-          <p className="text-lg font-bold text-red-500">
-            Total Bayar: Rp {totalBayar.toLocaleString('id-ID')}
-          </p>
+          <button
+            type="submit"
+            className="w-1/2 bg-red-600 py-2 rounded"
+          >
+            Simpan Service
+          </button>
         </div>
-
-        <button className="w-full bg-red-600 hover:bg-red-700 transition rounded py-2 font-semibold">
-          Simpan Service
-        </button>
       </form>
+
+      {/* ================= MODAL PREVIEW ================= */}
+      {showPreview && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-gray-900 w-full max-w-lg rounded-xl p-6">
+            <h2 className="text-xl font-bold mb-4">Preview Service</h2>
+            <p><b>Tanggal:</b> {tanggal}</p>
+            <p><b>Pelanggan:</b> {p?.nama}</p>
+            <p><b>Kendaraan:</b> {k?.nomorPolisi} - {k?.merek}</p>
+            <p><b>Permitaan/Keluhan:</b> {keluhan}</p>
+            <p><b>Mekanik:</b> {mekanik}</p>
+            <p><b>KM:</b> {kmSekarang}</p>
+            <p><b>Status Kendaraan:</b> {statusKendaraan}</p>
+            <p><b>Jenis Pembayaran:</b> {jenisPembayaran}</p>
+            <p><b>Biaya Servis:</b> Rp {biayaServis.toLocaleString('id-ID')}</p>
+          
+
+            <hr className="my-3 border-gray-700" />
+
+            {sparepart.map(sp => (
+              <p key={sp.id}>
+                {sp.nama} x{sp.qty} = Rp {(sp.harga * sp.qty).toLocaleString('id-ID')}
+              </p>
+            ))}
+
+            <p className="font-bold mt-3">
+              Total: Rp {totalBayar.toLocaleString('id-ID')}
+            </p>
+
+            <button
+              onClick={() => setShowPreview(false)}
+              className="mt-4 w-full bg-gray-700 py-2 rounded"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

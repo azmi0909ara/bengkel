@@ -33,7 +33,7 @@ export default function Navbar() {
           {getTitle()}
         </h1>
         <p className="text-xs text-gray-400">
-          BengkelPro Management System
+          AwansService Management System
         </p>
       </div>
 

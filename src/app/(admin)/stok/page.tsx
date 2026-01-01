@@ -145,6 +145,7 @@ export default function StokPage() {
         onSubmit={handleSubmit}
         className="bg-gray-900 border border-gray-700 rounded-xl p-6 mb-8 grid md:grid-cols-2 gap-4"
       >
+        
         <input placeholder="ID Sparepart" className="input" value={form.id_sparepart} onChange={e => setForm({ ...form, id_sparepart: e.target.value })} />
         <input placeholder="Kode / No Part" className="input" value={form.kode_sparepart} onChange={e => setForm({ ...form, kode_sparepart: e.target.value })} />
 

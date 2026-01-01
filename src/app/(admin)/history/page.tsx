@@ -1,0 +1,182 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { collection, getDocs } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+
+/* ================= TYPE ================= */
+type History = {
+  id: string
+  tanggal: any
+  pelangganId: string
+  pelangganNama: string
+  kendaraanId: string
+  kendaraanLabel: string
+  mekanikNama: string
+  kmSekarang: number
+  keluhan: string
+  statusKendaraan: string
+  jenisPembayaran: string
+  jenisServis: string[]
+  sparepart: {
+    id: string
+    nama: string
+    harga: number
+    qty: number
+  }[]
+  biayaServis: number
+  totalSparepart: number
+  totalBayar: number
+  status: string
+  createdAt: any
+  clearedAt: any
+}
+
+/* ================= PAGE ================= */
+export default function HistoryPage() {
+  const [history, setHistory] = useState<History[]>([])
+  const [detail, setDetail] = useState<History | null>(null)
+
+  /* ================= FETCH ================= */
+  useEffect(() => {
+    const load = async () => {
+      const snap = await getDocs(collection(db, 'history'))
+      setHistory(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+    }
+    load()
+  }, [])
+
+  /* ================= UI ================= */
+  return (
+    <div className="min-h-screen bg-gray-950 p-6 text-white">
+      <h1 className="text-2xl font-bold mb-6">History Service</h1>
+
+      <table className="w-full text-sm border border-gray-700">
+        <thead className="bg-gray-800">
+          <tr>
+            <th className="p-2">Tanggal</th>
+            <th className="p-2">Pelanggan</th>
+            <th className="p-2">Kendaraan</th>
+            <th className="p-2">Total</th>
+            <th className="p-2">Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {history.map(h => (
+            <tr key={h.id} className="border-t border-gray-700">
+              <td className="p-2">
+                {h.tanggal?.toDate().toLocaleDateString('id-ID')}
+              </td>
+              <td className="p-2">{h.pelangganNama}</td>
+              <td className="p-2">{h.kendaraanLabel}</td>
+              <td className="p-2">
+                Rp {h.totalBayar.toLocaleString('id-ID')}
+              </td>
+              <td className="p-2">
+                <button
+                  onClick={() => setDetail(h)}
+                  className="px-3 py-1 bg-gray-700 rounded"
+                >
+                  Detail
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* ================= MODAL DETAIL ================= */}
+      {detail && (
+        <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50">
+          <div className="bg-gray-900 w-full max-w-4xl max-h-[90vh] rounded-xl p-6 overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">Detail History Service</h2>
+
+            {/* === INFO UTAMA === */}
+            <table className="w-full text-sm border border-gray-700 mb-4">
+              <tbody>
+                <tr>
+                  <td className="p-2 bg-gray-800 w-1/4">Pelanggan</td>
+                  <td className="p-2">{detail.pelangganNama}</td>
+                </tr>
+                <tr>
+                  <td className="p-2 bg-gray-800">Kendaraan</td>
+                  <td className="p-2">{detail.kendaraanLabel}</td>
+                </tr>
+                <tr>
+                  <td className="p-2 bg-gray-800">Mekanik</td>
+                  <td className="p-2">{detail.mekanikNama}</td>
+                </tr>
+                <tr>
+                  <td className="p-2 bg-gray-800">KM Sekarang</td>
+                  <td className="p-2">{detail.kmSekarang}</td>
+                </tr>
+                <tr>
+                  <td className="p-2 bg-gray-800">Keluhan</td>
+                  <td className="p-2">{detail.keluhan}</td>
+                </tr>
+                <tr>
+                  <td className="p-2 bg-gray-800">Status Kendaraan</td>
+                  <td className="p-2">{detail.statusKendaraan}</td>
+                </tr>
+                <tr>
+                  <td className="p-2 bg-gray-800">Pembayaran</td>
+                  <td className="p-2">{detail.jenisPembayaran}</td>
+                </tr>
+                <tr>
+                  <td className="p-2 bg-gray-800">Status Service</td>
+                  <td className="p-2">{detail.status}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* === SPAREPART === */}
+            <h3 className="font-semibold mb-2">Sparepart</h3>
+            <table className="w-full text-sm border border-gray-700 mb-4">
+              <thead className="bg-gray-800">
+                <tr>
+                  <th className="p-2 text-left">Nama</th>
+                  <th className="p-2">Qty</th>
+                  <th className="p-2">Harga</th>
+                  <th className="p-2">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detail.sparepart.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="p-3 text-center text-gray-400">
+                      Tidak ada sparepart
+                    </td>
+                  </tr>
+                )}
+                {detail.sparepart.map(sp => (
+                  <tr key={sp.id} className="border-t border-gray-700">
+                    <td className="p-2">{sp.nama}</td>
+                    <td className="p-2 text-center">{sp.qty}</td>
+                    <td className="p-2">
+                      Rp {sp.harga.toLocaleString('id-ID')}
+                    </td>
+                    <td className="p-2">
+                      Rp {(sp.harga * sp.qty).toLocaleString('id-ID')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* === TOTAL === */}
+            <div className="text-right font-bold text-lg mb-4">
+              Total Bayar: Rp {detail.totalBayar.toLocaleString('id-ID')}
+            </div>
+
+            <button
+              onClick={() => setDetail(null)}
+              className="w-full bg-gray-700 py-2 rounded"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

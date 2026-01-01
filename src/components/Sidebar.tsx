@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, Car, BoxIcon, ToolCaseIcon, HistoryIcon } from 'lucide-react'
+import { LayoutDashboard, Users, Car, BoxIcon, ToolCaseIcon, HistoryIcon, Banknote, NotebookIcon } from 'lucide-react'
 
 const menu = [
   {
@@ -31,8 +31,13 @@ const menu = [
     icon: ToolCaseIcon,
   },
   {
-    label: 'Invoice',
-    href: '/invoice',
+    label: 'Transaksi',
+    href: '/transaksi',
+    icon: Banknote,
+  },
+  {
+    label: 'History',
+    href: '/history',
     icon: HistoryIcon,
   },
 ]

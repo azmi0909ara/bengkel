@@ -9,8 +9,11 @@ import {
   doc,
   updateDoc,
   Timestamp,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useExportExcel } from "@/hooks/useExportExcel";
+import { DateFilter, useDateFilter } from "@/hooks/useDataFilter";
 
 /* ================== TYPES ================== */
 type Pelanggan = {
@@ -37,13 +40,12 @@ export default function KendaraanPage() {
   const [pelanggan, setPelanggan] = useState<Pelanggan[]>([]);
   const [kendaraan, setKendaraan] = useState<Kendaraan[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
+  const [filterDate, setFilterDate] = useState<DateFilter>("all");
 
   // modal detail
   const [detail, setDetail] = useState<Kendaraan | null>(null);
-
   // search
   const [search, setSearch] = useState("");
-
   const [form, setForm] = useState({
     pelangganId: "",
     nomorPolisi: "",
@@ -54,6 +56,8 @@ export default function KendaraanPage() {
     tahunProduksi: "",
     warna: "",
   });
+
+  const { exportToExcel } = useExportExcel();
 
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -127,7 +131,7 @@ export default function KendaraanPage() {
     } else {
       await addDoc(collection(db, "kendaraan"), {
         ...payload,
-        createdAt: Timestamp.now(),
+        createdAt: serverTimestamp(),
       });
     }
 
@@ -158,7 +162,13 @@ export default function KendaraanPage() {
   };
 
   /* ================== FILTER ================== */
-  const filtered = kendaraan.filter((k) => {
+  const kendaraanFilteredByDate = useDateFilter(
+    kendaraan,
+    "createdAt",
+    filterDate
+  );
+
+  const filtered = kendaraanFilteredByDate.filter((k) => {
     const key = search.toLowerCase();
     return (
       k.pelangganNama.toLowerCase().includes(key) ||
@@ -269,12 +279,33 @@ export default function KendaraanPage() {
       </form>
 
       {/* ================= SEARCH ================= */}
-      <input
-        placeholder="Cari pemilik / plat / merek..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full mb-4 bg-gray-800 border border-gray-700 rounded px-4 py-2"
-      />
+      <div className="flex items-center justify-between">
+        <input
+          placeholder="Cari pemilik / plat / merek..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full mb-4 bg-gray-800 border border-gray-700 rounded px-4 py-2 md:w-1/3"
+        />
+        <div className="flex items-center gap-4">
+          <select
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value as DateFilter)}
+            className="bg-gray-800 border border-gray-700 px-4 py-2 rounded"
+          >
+            <option value="all">Semua Tanggal</option>
+            <option value="daily">Hari Ini</option>
+            <option value="weekly">Minggu Ini</option>
+            <option value="monthly">Bulan Ini</option>
+            <option value="yearly">Tahun Ini</option>
+          </select>
+          <button
+            onClick={() => exportToExcel(kendaraan, "data_kendaraan.xlsx")}
+            className="px-4 py-2 rounded-md bg-green-400"
+          >
+            Export Excel
+          </button>
+        </div>
+      </div>
 
       {/* ================= TABLE ================= */}
       <div className="bg-gray-900 border border-gray-700 rounded-xl overflow-x-auto">

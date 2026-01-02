@@ -1,55 +1,82 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { collection, getDocs } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { useEffect, useState } from "react";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useExportExcel } from "@/hooks/useExportExcel";
+import { DateFilter, useDateFilter } from "@/hooks/useDataFilter";
 
 /* ================= TYPE ================= */
 type History = {
-  id: string
-  tanggal: any
-  pelangganId: string
-  pelangganNama: string
-  kendaraanId: string
-  kendaraanLabel: string
-  mekanikNama: string
-  kmSekarang: number
-  keluhan: string
-  statusKendaraan: string
-  jenisPembayaran: string
-  jenisServis: string[]
+  id: string;
+  tanggal: any;
+  pelangganId: string;
+  pelangganNama: string;
+  kendaraanId: string;
+  kendaraanLabel: string;
+  mekanikNama: string;
+  kmSekarang: number;
+  keluhan: string;
+  statusKendaraan: string;
+  jenisPembayaran: string;
+  jenisServis: string[];
   sparepart: {
-    id: string
-    nama: string
-    harga: number
-    qty: number
-  }[]
-  biayaServis: number
-  totalSparepart: number
-  totalBayar: number
-  status: string
-  createdAt: any
-  clearedAt: any
-}
+    id: string;
+    nama: string;
+    harga: number;
+    qty: number;
+  }[];
+  biayaServis: number;
+  totalSparepart: number;
+  totalBayar: number;
+  status: string;
+  createdAt: any;
+  clearedAt: any;
+};
 
 /* ================= PAGE ================= */
 export default function HistoryPage() {
-  const [history, setHistory] = useState<History[]>([])
-  const [detail, setDetail] = useState<History | null>(null)
+  const [history, setHistory] = useState<History[]>([]);
+  const [detail, setDetail] = useState<History | null>(null);
+  const [filterDate, setFilterDate] = useState<DateFilter>("all");
+
+  const { exportToExcel } = useExportExcel();
+  const filteredHistory = useDateFilter(history, "createdAt", filterDate);
 
   /* ================= FETCH ================= */
   useEffect(() => {
     const load = async () => {
-      const snap = await getDocs(collection(db, 'history'))
-      setHistory(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
-    }
-    load()
-  }, [])
+      const snap = await getDocs(collection(db, "history"));
+      setHistory(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
+    };
+    load();
+  }, []);
 
   /* ================= UI ================= */
   return (
     <div className="min-h-screen bg-gray-950 p-6 text-white">
-      <h1 className="text-2xl font-bold mb-6">History Service</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">History Service</h1>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => exportToExcel(history, "data_penjualan.xlsx")}
+            className="px-4 py-2 rounded-md bg-green-400"
+          >
+            Export Excel
+          </button>
+          <select
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value as DateFilter)}
+            className="bg-gray-800 border border-gray-700 px-4 py-2 rounded"
+          >
+            <option value="all">Semua Tanggal</option>
+            <option value="daily">Hari Ini</option>
+            <option value="weekly">Minggu Ini</option>
+            <option value="monthly">Bulan Ini</option>
+            <option value="yearly">Tahun Ini</option>
+          </select>
+        </div>
+      </div>
 
       <table className="w-full text-sm border border-gray-700">
         <thead className="bg-gray-800">
@@ -62,16 +89,14 @@ export default function HistoryPage() {
           </tr>
         </thead>
         <tbody>
-          {history.map(h => (
+          {filteredHistory.map((h) => (
             <tr key={h.id} className="border-t border-gray-700">
               <td className="p-2">
-                {h.tanggal?.toDate().toLocaleDateString('id-ID')}
+                {h.tanggal?.toDate().toLocaleDateString("id-ID")}
               </td>
               <td className="p-2">{h.pelangganNama}</td>
               <td className="p-2">{h.kendaraanLabel}</td>
-              <td className="p-2">
-                Rp {h.totalBayar.toLocaleString('id-ID')}
-              </td>
+              <td className="p-2">Rp {h.totalBayar.toLocaleString("id-ID")}</td>
               <td className="p-2">
                 <button
                   onClick={() => setDetail(h)}
@@ -148,15 +173,15 @@ export default function HistoryPage() {
                     </td>
                   </tr>
                 )}
-                {detail.sparepart.map(sp => (
+                {detail.sparepart.map((sp) => (
                   <tr key={sp.id} className="border-t border-gray-700">
                     <td className="p-2">{sp.nama}</td>
                     <td className="p-2 text-center">{sp.qty}</td>
                     <td className="p-2">
-                      Rp {sp.harga.toLocaleString('id-ID')}
+                      Rp {sp.harga.toLocaleString("id-ID")}
                     </td>
                     <td className="p-2">
-                      Rp {(sp.harga * sp.qty).toLocaleString('id-ID')}
+                      Rp {(sp.harga * sp.qty).toLocaleString("id-ID")}
                     </td>
                   </tr>
                 ))}
@@ -165,7 +190,7 @@ export default function HistoryPage() {
 
             {/* === TOTAL === */}
             <div className="text-right font-bold text-lg mb-4">
-              Total Bayar: Rp {detail.totalBayar.toLocaleString('id-ID')}
+              Total Bayar: Rp {detail.totalBayar.toLocaleString("id-ID")}
             </div>
 
             <button
@@ -178,5 +203,5 @@ export default function HistoryPage() {
         </div>
       )}
     </div>
-  )
+  );
 }

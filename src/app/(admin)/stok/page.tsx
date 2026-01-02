@@ -9,8 +9,11 @@ import {
   deleteDoc,
   doc,
   Timestamp,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useExportExcel } from "@/hooks/useExportExcel";
+import { DateFilter, useDateFilter } from "@/hooks/useDataFilter";
 
 type Sparepart = {
   id: string;
@@ -40,6 +43,10 @@ export default function StokPage() {
   const [search, setSearch] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Sparepart | null>(null);
+  const [filterDate, setFilterDate] = useState<DateFilter>("all");
+
+  const { exportToExcel } = useExportExcel();
+  const filterData = useDateFilter(data, "createdAt", filterDate);
 
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -111,7 +118,7 @@ export default function StokPage() {
     } else {
       await addDoc(collection(db, "stok"), {
         ...payload,
-        createdAt: Timestamp.now(),
+        createdAt: serverTimestamp(),
       });
     }
 
@@ -156,7 +163,7 @@ export default function StokPage() {
   };
 
   // ================= FILTER =================
-  const filteredData = data.filter((item) =>
+  const filteredData = filterData.filter((item) =>
     `${item.nama_sparepart} ${item.kode_sparepart} ${item.merk}`
       .toLowerCase()
       .includes(search.toLowerCase())
@@ -247,12 +254,34 @@ export default function StokPage() {
       </form>
 
       {/* SEARCH */}
-      <input
-        placeholder="Cari sparepart..."
-        className="mb-4 bg-gray-800 border border-gray-700 rounded px-4 py-2"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
+      <div className="flex items-center justify-between">
+        <input
+          placeholder="Cari sparepart..."
+          className="mb-4 bg-gray-800 border border-gray-700 rounded px-4 py-2"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+
+        <div className="flex items-center gap-4">
+          <select
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value as DateFilter)}
+            className="bg-gray-800 border border-gray-700 px-4 py-2 rounded"
+          >
+            <option value="all">Semua Tanggal</option>
+            <option value="daily">Hari Ini</option>
+            <option value="weekly">Minggu Ini</option>
+            <option value="monthly">Bulan Ini</option>
+            <option value="yearly">Tahun Ini</option>
+          </select>
+          <button
+            className="px-4 py-2 bg-green-400 rounded-md"
+            onClick={() => exportToExcel(sortedData, "data_stok.xlsx")}
+          >
+            Export Excel
+          </button>
+        </div>
+      </div>
 
       {/* TABLE */}
       <div className="bg-gray-900 border border-gray-700 rounded-xl overflow-x-auto">

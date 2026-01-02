@@ -1,5 +1,8 @@
 "use client";
 
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+
 import { useEffect, useRef, useState } from "react";
 import {
   collection,
@@ -8,8 +11,11 @@ import {
   deleteDoc,
   doc,
   updateDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { DateFilter, useDateFilter } from "@/hooks/useDataFilter";
+import { useExportExcel } from "@/hooks/useExportExcel";
 
 interface Pelanggan {
   id: string;
@@ -34,6 +40,7 @@ export default function PelangganPage() {
   // 🔍 search & filter
   const [search, setSearch] = useState("");
   const [filterGender, setFilterGender] = useState("");
+  const [filterDate, setFilterDate] = useState<DateFilter>("all");
 
   // 👁 modal detail
   const [detail, setDetail] = useState<Pelanggan | null>(null);
@@ -101,7 +108,10 @@ export default function PelangganPage() {
     if (editId) {
       await updateDoc(doc(db, "pelanggan", editId), form);
     } else {
-      await addDoc(pelangganRef, form);
+      await addDoc(pelangganRef, {
+        ...form,
+        createdAt: serverTimestamp(),
+      });
     }
     resetForm();
     fetchData();
@@ -121,19 +131,24 @@ export default function PelangganPage() {
   };
 
   // 🔍 FILTERED DATA
-  const filteredData = data.filter((p) => {
-    const keyword = search.toLowerCase();
-    const matchSearch =
-      p.nama.toLowerCase().includes(keyword) ||
-      p.noHp1.includes(keyword) ||
-      p.noHp2.includes(keyword) ||
-      p.nik.includes(keyword) ||
-      p.email.toLowerCase().includes(keyword);
+  const filteredData = useDateFilter(
+    data.filter((p) => {
+      const keyword = search.toLowerCase();
+      const matchSearch =
+        p.nama.toLowerCase().includes(keyword) ||
+        p.noHp1.includes(keyword) ||
+        p.noHp2.includes(keyword) ||
+        p.nik.includes(keyword) ||
+        p.email.toLowerCase().includes(keyword);
 
-    const matchGender = filterGender ? p.gender === filterGender : true;
+      const matchGender = filterGender ? p.gender === filterGender : true;
 
-    return matchSearch && matchGender;
-  });
+      return matchSearch && matchGender;
+    }),
+    "createdAt",
+    filterDate
+  );
+  const { exportToExcel } = useExportExcel();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white p-6">
@@ -263,7 +278,7 @@ export default function PelangganPage() {
       </form>
 
       {/* ================= SEARCH & FILTER ================= */}
-      <div className="flex flex-wrap gap-4 mb-4">
+      <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
         <input
           placeholder="Cari nama / HP / NIK / email"
           value={search}
@@ -271,15 +286,36 @@ export default function PelangganPage() {
           className="bg-gray-800 border border-gray-700 px-4 py-2 rounded w-full md:w-1/3"
         />
 
-        <select
-          value={filterGender}
-          onChange={(e) => setFilterGender(e.target.value)}
-          className="bg-gray-800 border border-gray-700 px-4 py-2 rounded"
-        >
-          <option value="">Semua Gender</option>
-          <option value="Laki-laki">Laki-laki</option>
-          <option value="Perempuan">Perempuan</option>
-        </select>
+        <div className="flex items-center gap-4">
+          <select
+            value={filterGender}
+            onChange={(e) => setFilterGender(e.target.value)}
+            className="bg-gray-800 border border-gray-700 px-4 py-2 rounded"
+          >
+            <option value="">Semua Gender</option>
+            <option value="Laki-laki">Laki-laki</option>
+            <option value="Perempuan">Perempuan</option>
+          </select>
+
+          <select
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value as DateFilter)}
+            className="bg-gray-800 border border-gray-700 px-4 py-2 rounded"
+          >
+            <option value="all">Semua Tanggal</option>
+            <option value="daily">Hari Ini</option>
+            <option value="weekly">Minggu Ini</option>
+            <option value="monthly">Bulan Ini</option>
+            <option value="yearly">Tahun Ini</option>
+          </select>
+
+          <button
+            className="px-4 py-2 rounded-md bg-green-400"
+            onClick={() => exportToExcel(filteredData, "data_pelanggan.xlsx")}
+          >
+            Export Excel
+          </button>
+        </div>
       </div>
 
       {/* ================= TABLE ================= */}

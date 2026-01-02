@@ -1,6 +1,6 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from "react";
 import {
   collection,
   addDoc,
@@ -9,104 +9,106 @@ import {
   doc,
   updateDoc,
   Timestamp,
-} from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 /* ================== TYPES ================== */
 type Pelanggan = {
-  id: string
-  nama: string
-}
+  id: string;
+  nama: string;
+};
 
 type Kendaraan = {
-  id: string
-  pelangganId: string
-  pelangganNama: string
-  nomorPolisi: string
-  nomorRangka: string
-  nomorMesin: string
-  merek: string
-  tipe: string
-  tahunProduksi: number
-  warna: string
-  createdAt?: any
-}
+  id: string;
+  pelangganId: string;
+  pelangganNama: string;
+  nomorPolisi: string;
+  nomorRangka: string;
+  nomorMesin: string;
+  merek: string;
+  tipe: string;
+  tahunProduksi: number;
+  warna: string;
+  createdAt?: any;
+};
 
 /* ================== PAGE ================== */
 export default function KendaraanPage() {
-  const [pelanggan, setPelanggan] = useState<Pelanggan[]>([])
-  const [kendaraan, setKendaraan] = useState<Kendaraan[]>([])
-  const [editId, setEditId] = useState<string | null>(null)
+  const [pelanggan, setPelanggan] = useState<Pelanggan[]>([]);
+  const [kendaraan, setKendaraan] = useState<Kendaraan[]>([]);
+  const [editId, setEditId] = useState<string | null>(null);
 
   // modal detail
-  const [detail, setDetail] = useState<Kendaraan | null>(null)
+  const [detail, setDetail] = useState<Kendaraan | null>(null);
 
   // search
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState("");
 
   const [form, setForm] = useState({
-    pelangganId: '',
-    nomorPolisi: '',
-    nomorRangka: '',
-    nomorMesin: '',
-    merek: '',
-    tipe: '',
-    tahunProduksi: '',
-    warna: '',
-  })
+    pelangganId: "",
+    nomorPolisi: "",
+    nomorRangka: "",
+    nomorMesin: "",
+    merek: "",
+    tipe: "",
+    tahunProduksi: "",
+    warna: "",
+  });
+
+  const formRef = useRef<HTMLFormElement>(null);
 
   /* ================== FETCH ================== */
   useEffect(() => {
-    fetchPelanggan()
-    fetchKendaraan()
-  }, [])
+    fetchPelanggan();
+    fetchKendaraan();
+  }, []);
 
   const fetchPelanggan = async () => {
-    const snap = await getDocs(collection(db, 'pelanggan'))
+    const snap = await getDocs(collection(db, "pelanggan"));
     setPelanggan(
-      snap.docs.map(d => ({
+      snap.docs.map((d) => ({
         id: d.id,
         ...(d.data() as any),
       }))
-    )
-  }
+    );
+  };
 
   const fetchKendaraan = async () => {
-    const snap = await getDocs(collection(db, 'kendaraan'))
+    const snap = await getDocs(collection(db, "kendaraan"));
     setKendaraan(
-      snap.docs.map(d => ({
+      snap.docs.map((d) => ({
         id: d.id,
         ...(d.data() as any),
       }))
-    )
-  }
+    );
+  };
 
   /* ================== HANDLER ================== */
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    setForm({ ...form, [e.target.name]: e.target.value })
-  }
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
   const resetForm = () => {
-    setEditId(null)
+    setEditId(null);
     setForm({
-      pelangganId: '',
-      nomorPolisi: '',
-      nomorRangka: '',
-      nomorMesin: '',
-      merek: '',
-      tipe: '',
-      tahunProduksi: '',
-      warna: '',
-    })
-  }
+      pelangganId: "",
+      nomorPolisi: "",
+      nomorRangka: "",
+      nomorMesin: "",
+      merek: "",
+      tipe: "",
+      tahunProduksi: "",
+      warna: "",
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
-    const pemilik = pelanggan.find(p => p.id === form.pelangganId)
-    if (!pemilik) return
+    const pemilik = pelanggan.find((p) => p.id === form.pelangganId);
+    if (!pemilik) return;
 
     const payload = {
       pelangganId: form.pelangganId,
@@ -118,23 +120,25 @@ export default function KendaraanPage() {
       tipe: form.tipe,
       tahunProduksi: Number(form.tahunProduksi),
       warna: form.warna,
-    }
+    };
 
     if (editId) {
-      await updateDoc(doc(db, 'kendaraan', editId), payload)
+      await updateDoc(doc(db, "kendaraan", editId), payload);
     } else {
-      await addDoc(collection(db, 'kendaraan'), {
+      await addDoc(collection(db, "kendaraan"), {
         ...payload,
         createdAt: Timestamp.now(),
-      })
+      });
     }
 
-    resetForm()
-    fetchKendaraan()
-  }
+    resetForm();
+    fetchKendaraan();
+  };
 
   const handleEdit = (k: Kendaraan) => {
-    setEditId(k.id)
+    formRef.current?.scrollIntoView({ behavior: "smooth" });
+
+    setEditId(k.id);
     setForm({
       pelangganId: k.pelangganId,
       nomorPolisi: k.nomorPolisi,
@@ -144,24 +148,24 @@ export default function KendaraanPage() {
       tipe: k.tipe,
       tahunProduksi: k.tahunProduksi.toString(),
       warna: k.warna,
-    })
-  }
+    });
+  };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Hapus kendaraan ini?')) return
-    await deleteDoc(doc(db, 'kendaraan', id))
-    fetchKendaraan()
-  }
+    if (!confirm("Hapus kendaraan ini?")) return;
+    await deleteDoc(doc(db, "kendaraan", id));
+    fetchKendaraan();
+  };
 
   /* ================== FILTER ================== */
-  const filtered = kendaraan.filter(k => {
-    const key = search.toLowerCase()
+  const filtered = kendaraan.filter((k) => {
+    const key = search.toLowerCase();
     return (
       k.pelangganNama.toLowerCase().includes(key) ||
       k.nomorPolisi.toLowerCase().includes(key) ||
       k.merek.toLowerCase().includes(key)
-    )
-  })
+    );
+  });
 
   /* ================== UI ================== */
   return (
@@ -171,10 +175,11 @@ export default function KendaraanPage() {
       {/* ================= FORM ================= */}
       <form
         onSubmit={handleSubmit}
+        ref={formRef}
         className="bg-gray-900 border border-gray-700 rounded-xl p-6 mb-8"
       >
         <h2 className="font-semibold mb-4">
-          {editId ? 'Edit Kendaraan' : 'Tambah Kendaraan'}
+          {editId ? "Edit Kendaraan" : "Tambah Kendaraan"}
         </h2>
 
         <div className="grid md:grid-cols-2 gap-4">
@@ -186,28 +191,77 @@ export default function KendaraanPage() {
             required
           >
             <option value="">Pilih Nama Pemilik</option>
-            {pelanggan.map(p => (
+            {pelanggan.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nama}
               </option>
             ))}
           </select>
 
-          <input name="nomorPolisi" placeholder="Nomor Polisi" value={form.nomorPolisi} onChange={handleChange} className="input" required />
-          <input name="nomorRangka" placeholder="Nomor Rangka (VIN)" value={form.nomorRangka} onChange={handleChange} className="input" />
-          <input name="nomorMesin" placeholder="Nomor Mesin" value={form.nomorMesin} onChange={handleChange} className="input" />
-          <input name="merek" placeholder="Merek" value={form.merek} onChange={handleChange} className="input" required />
-          <input name="tipe" placeholder="Tipe" value={form.tipe} onChange={handleChange} className="input" />
-          <input type="number" name="tahunProduksi" placeholder="Tahun Produksi" value={form.tahunProduksi} onChange={handleChange} className="input" />
-          <input name="warna" placeholder="Warna" value={form.warna} onChange={handleChange} className="input" />
+          <input
+            name="nomorPolisi"
+            placeholder="Nomor Polisi"
+            value={form.nomorPolisi}
+            onChange={handleChange}
+            className="input"
+            required
+          />
+          <input
+            name="nomorRangka"
+            placeholder="Nomor Rangka (VIN)"
+            value={form.nomorRangka}
+            onChange={handleChange}
+            className="input"
+          />
+          <input
+            name="nomorMesin"
+            placeholder="Nomor Mesin"
+            value={form.nomorMesin}
+            onChange={handleChange}
+            className="input"
+          />
+          <input
+            name="merek"
+            placeholder="Merek"
+            value={form.merek}
+            onChange={handleChange}
+            className="input"
+            required
+          />
+          <input
+            name="tipe"
+            placeholder="Tipe"
+            value={form.tipe}
+            onChange={handleChange}
+            className="input"
+          />
+          <input
+            type="number"
+            name="tahunProduksi"
+            placeholder="Tahun Produksi"
+            value={form.tahunProduksi}
+            onChange={handleChange}
+            className="input"
+          />
+          <input
+            name="warna"
+            placeholder="Warna"
+            value={form.warna}
+            onChange={handleChange}
+            className="input"
+          />
         </div>
 
         <div className="mt-4 flex gap-3">
           <button className="bg-red-600 hover:bg-red-700 px-6 py-2 rounded font-semibold">
-            {editId ? 'Update' : 'Simpan'}
+            {editId ? "Update" : "Simpan"}
           </button>
           {editId && (
-            <button type="button" onClick={resetForm} className="border border-gray-600 px-6 py-2 rounded">
+            <button
+              type="button"
+              onClick={resetForm}
+              className="border border-gray-600 px-6 py-2 rounded"
+            >
               Batal
             </button>
           )}
@@ -218,7 +272,7 @@ export default function KendaraanPage() {
       <input
         placeholder="Cari pemilik / plat / merek..."
         value={search}
-        onChange={e => setSearch(e.target.value)}
+        onChange={(e) => setSearch(e.target.value)}
         className="w-full mb-4 bg-gray-800 border border-gray-700 rounded px-4 py-2"
       />
 
@@ -235,16 +289,28 @@ export default function KendaraanPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(k => (
-              <tr key={k.id} className="border-t border-gray-700 hover:bg-gray-800">
+            {filtered.map((k) => (
+              <tr
+                key={k.id}
+                className="border-t border-gray-700 hover:bg-gray-800"
+              >
                 <td className="p-3">{k.pelangganNama}</td>
                 <td className="p-3">{k.nomorPolisi}</td>
                 <td className="p-3">{k.merek}</td>
                 <td className="p-3">{k.tahunProduksi}</td>
                 <td className="p-3 text-center space-x-2">
-                  <button onClick={() => setDetail(k)} className="btn-view">Detail</button>
-                  <button onClick={() => handleEdit(k)} className="btn-edit">Edit</button>
-                  <button onClick={() => handleDelete(k.id)} className="btn-delete">Hapus</button>
+                  <button onClick={() => setDetail(k)} className="btn-view">
+                    Detail
+                  </button>
+                  <button onClick={() => handleEdit(k)} className="btn-edit">
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(k.id)}
+                    className="btn-delete"
+                  >
+                    Hapus
+                  </button>
                 </td>
               </tr>
             ))}
@@ -259,17 +325,34 @@ export default function KendaraanPage() {
             <h2 className="text-lg font-bold mb-4">Detail Kendaraan</h2>
 
             <div className="space-y-2 text-sm">
-              <p><b>Pemilik:</b> {detail.pelangganNama}</p>
-              <p><b>Plat:</b> {detail.nomorPolisi}</p>
-              <p><b>Merek / Tipe:</b> {detail.merek} {detail.tipe}</p>
-              <p><b>Rangka:</b> {detail.nomorRangka}</p>
-              <p><b>Mesin:</b> {detail.nomorMesin}</p>
-              <p><b>Tahun:</b> {detail.tahunProduksi}</p>
-              <p><b>Warna:</b> {detail.warna}</p>
+              <p>
+                <b>Pemilik:</b> {detail.pelangganNama}
+              </p>
+              <p>
+                <b>Plat:</b> {detail.nomorPolisi}
+              </p>
+              <p>
+                <b>Merek / Tipe:</b> {detail.merek} {detail.tipe}
+              </p>
+              <p>
+                <b>Rangka:</b> {detail.nomorRangka}
+              </p>
+              <p>
+                <b>Mesin:</b> {detail.nomorMesin}
+              </p>
+              <p>
+                <b>Tahun:</b> {detail.tahunProduksi}
+              </p>
+              <p>
+                <b>Warna:</b> {detail.warna}
+              </p>
             </div>
 
             <div className="mt-4 text-right">
-              <button onClick={() => setDetail(null)} className="bg-red-600 mt-6 w-full border border-gray-600 py-2 rounded hover:bg-gray-800">
+              <button
+                onClick={() => setDetail(null)}
+                className="bg-red-600 mt-6 w-full border border-gray-600 py-2 rounded hover:bg-gray-800"
+              >
                 Tutup
               </button>
             </div>
@@ -277,5 +360,5 @@ export default function KendaraanPage() {
         </div>
       )}
     </div>
-  )
+  );
 }

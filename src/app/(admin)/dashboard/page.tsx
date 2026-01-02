@@ -1,65 +1,71 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { collection, getDocs } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { useEffect, useState } from "react";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 type Stok = {
-  id: string
-  nama: string
-  stok: number
-}
+  id: string;
+  nama: string;
+  stok: number;
+};
 
 type Service = {
-  id: string
-  totalBayar: number
-  status: string
-}
+  id: string;
+  totalBayar: number;
+  status: string;
+};
 
 export default function Dashboard() {
-  const [stok, setStok] = useState<Stok[]>([])
-  const [service, setService] = useState<Service[]>([])
-  const [history, setHistory] = useState<Service[]>([])
+  const [stok, setStok] = useState<Stok[]>([]);
+  const [service, setService] = useState<Service[]>([]);
+  const [history, setHistory] = useState<Service[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
       // Stok
-      const stokSnap = await getDocs(collection(db, 'stok'))
-      setStok(stokSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+      const stokSnap = await getDocs(collection(db, "stok"));
+      setStok(stokSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
 
       // Service
-      const serviceSnap = await getDocs(collection(db, 'service'))
+      const serviceSnap = await getDocs(collection(db, "service"));
       setService(
-        serviceSnap.docs.map(d => ({
+        serviceSnap.docs.map((d) => ({
           id: d.id,
           totalBayar: Number(d.data().totalBayar || 0),
-          status: d.data().status || 'MENUNGGU',
+          status: d.data().status || "MENUNGGU",
         }))
-      )
+      );
 
       // History
-      const historySnap = await getDocs(collection(db, 'history'))
+      const historySnap = await getDocs(collection(db, "history"));
       setHistory(
-        historySnap.docs.map(d => ({
+        historySnap.docs.map((d) => ({
           id: d.id,
           totalBayar: Number(d.data().totalBayar || 0),
-          status: d.data().status || 'SELESAI',
+          status: d.data().status || "SELESAI",
         }))
-      )
-    }
-    fetchData()
-  }, [])
+      );
+    };
+    fetchData();
+  }, []);
 
   // Hitung total pendapatan
-  const totalPendapatanService = service.reduce((sum, s) => sum + s.totalBayar, 0)
-  const totalPendapatanHistory = history.reduce((sum, s) => sum + s.totalBayar, 0)
-  const totalPendapatanAll = totalPendapatanService + totalPendapatanHistory
+  const totalPendapatanService = service.reduce(
+    (sum, s) => sum + s.totalBayar,
+    0
+  );
+  const totalPendapatanHistory = history.reduce(
+    (sum, s) => sum + s.totalBayar,
+    0
+  );
+  const totalPendapatanAll = totalPendapatanService + totalPendapatanHistory;
 
-  const totalService = service.length
-  const selesaiCount = service.filter(s => s.status === 'SELESAI').length
-  const menungguCount = service.filter(s => s.status === 'MENUNGGU').length
-  const barangHabis = stok.filter(s => s.stok === 0).length
-  const barangTersedia = stok.filter(s => s.stok > 0).length
+  const totalService = service.length;
+  const selesaiCount = service.filter((s) => s.status === "SELESAI").length;
+  const menungguCount = service.filter((s) => s.status === "MENUNGGU").length;
+  const barangHabis = stok.filter((s) => s.stok === 0).length;
+  const barangTersedia = stok.filter((s) => s.stok > 0).length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black p-6 text-white space-y-6">
@@ -87,15 +93,17 @@ export default function Dashboard() {
         <div className="bg-gray-900 p-4 rounded-xl border border-gray-700">
           <p className="text-sm text-gray-400">Pendapatan Saat Ini</p>
           <p className="text-2xl font-bold text-red-500">
-            Rp {totalPendapatanService.toLocaleString('id-ID')}
+            Rp {totalPendapatanService.toLocaleString("id-ID")}
           </p>
         </div>
 
         {/* Total Pendapatan Keseluruhan */}
         <div className="bg-gray-900 p-4 rounded-xl border border-gray-700">
-          <p className="text-sm text-gray-400">Pendapatan Total (Service + History)</p>
+          <p className="text-sm text-gray-400">
+            Pendapatan Total (Service + History)
+          </p>
           <p className="text-2xl font-bold text-red-500">
-            Rp {totalPendapatanAll.toLocaleString('id-ID')}
+            Rp {totalPendapatanAll.toLocaleString("id-ID")}
           </p>
         </div>
       </div>
@@ -112,12 +120,12 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
-              {service.map(s => (
+              {service.map((s) => (
                 <tr key={s.id} className="hover:bg-gray-800 transition">
                   <td className="px-4 py-3">{s.id}</td>
                   <td className="px-4 py-3">{s.status}</td>
                   <td className="px-4 py-3">
-                    Rp {s.totalBayar.toLocaleString('id-ID')}
+                    Rp {s.totalBayar.toLocaleString("id-ID")}
                   </td>
                 </tr>
               ))}
@@ -126,5 +134,5 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
-  )
+  );
 }

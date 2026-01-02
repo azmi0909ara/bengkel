@@ -1,51 +1,52 @@
-'use client'
+"use client";
 
-import { useRouter, usePathname } from 'next/navigation'
+import { auth } from "@/lib/firebase";
+import { signOut } from "firebase/auth";
+import { useRouter, usePathname } from "next/navigation";
 
 export default function Navbar() {
-  const router = useRouter()
-  const pathname = usePathname()
+  const router = useRouter();
+  const pathname = usePathname();
 
   const getTitle = () => {
     switch (pathname) {
-      case '/dashboard':
-        return 'Dashboard'
-      case '/pelanggan':
-        return 'Data Pelanggan'
-      case '/kendaraan':
-        return 'Data Kendaraan'
+      case "/dashboard":
+        return "Dashboard";
+      case "/pelanggan":
+        return "Data Pelanggan";
+      case "/kendaraan":
+        return "Data Kendaraan";
       default:
-        return 'Admin Panel'
+        return "Admin Panel";
     }
-  }
+  };
 
-  const handleLogout = () => {
-    // nanti sambung Firebase signOut
-    router.push('/login')
-  }
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      await fetch(`/auth/logout`, { method: "POST" });
+
+      router.push("/login");
+    } catch (error) {
+      console.error("logout gagal", error);
+    }
+  };
 
   return (
     <header className="h-16 flex items-center justify-between px-6 bg-gradient-to-r from-gray-900 via-gray-800 to-black border-b border-gray-800">
-      
       {/* TITLE */}
       <div>
         <h1 className="text-lg font-semibold text-white tracking-wide">
           {getTitle()}
         </h1>
-        <p className="text-xs text-gray-400">
-          AwansService Management System
-        </p>
+        <p className="text-xs text-gray-400">AwansService Management System</p>
       </div>
 
       {/* RIGHT ACTION */}
       <div className="flex items-center gap-4">
         <div className="text-right">
-          <p className="text-sm text-white font-medium">
-            Admin
-          </p>
-          <p className="text-xs text-gray-400">
-            admin@bengkel.com
-          </p>
+          <p className="text-sm text-white font-medium">Admin</p>
+          <p className="text-xs text-gray-400">admin@bengkel.com</p>
         </div>
 
         <button
@@ -56,5 +57,5 @@ export default function Navbar() {
         </button>
       </div>
     </header>
-  )
+  );
 }

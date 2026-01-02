@@ -120,15 +120,53 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
-              {service.map((s) => (
-                <tr key={s.id} className="hover:bg-gray-800 transition">
-                  <td className="px-4 py-3">{s.id}</td>
-                  <td className="px-4 py-3">{s.status}</td>
-                  <td className="px-4 py-3">
-                    Rp {s.totalBayar.toLocaleString("id-ID")}
+              {service.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-4 py-12 text-center">
+                    <div className="flex flex-col items-center gap-3 text-gray-400">
+                      <svg
+                        className="w-12 h-12"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                        />
+                      </svg>
+                      <p className="text-base font-medium text-gray-300">
+                        Belum Ada Service
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Data service terbaru akan muncul di sini
+                      </p>
+                    </div>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                service.map((s) => (
+                  <tr key={s.id} className="hover:bg-gray-800 transition">
+                    <td className="px-4 py-3">{s.id}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`px-2 py-1 rounded text-xs ${
+                          s.status === "SELESAI"
+                            ? "bg-green-600/20 text-green-400 border border-green-600/30"
+                            : "bg-yellow-600/20 text-yellow-400 border border-yellow-600/30"
+                        }`}
+                      >
+                        {s.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-medium">
+                      Rp {s.totalBayar.toLocaleString("id-ID")}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

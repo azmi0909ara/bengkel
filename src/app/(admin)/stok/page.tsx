@@ -19,7 +19,9 @@ type Sparepart = {
   id: string;
   id_sparepart: string;
   kode_sparepart: string;
+  no_sparepart: string;
   nama_sparepart: string;
+  ngk_no: string;
   merk: string;
   kategori: string;
   stok: number;
@@ -53,7 +55,9 @@ export default function StokPage() {
   const [form, setForm] = useState({
     id_sparepart: "",
     kode_sparepart: "",
+    no_sparepart: "",
     nama_sparepart: "",
+    ngk_no: "",
     merk: "",
     kategori: "",
     stok: "",
@@ -102,7 +106,9 @@ export default function StokPage() {
     const payload = {
       id_sparepart: newIdSparepart,
       kode_sparepart: newKode,
+      no_sparepart: form.no_sparepart,
       nama_sparepart: form.nama_sparepart,
+      ngk_no: form.ngk_no,
       merk: form.merk,
       kategori: form.kategori,
       stok: Number(form.stok),
@@ -125,7 +131,9 @@ export default function StokPage() {
     setForm({
       id_sparepart: generateIdSparepart(),
       kode_sparepart: getNextKodeSparepart(data),
+      no_sparepart: "",
       nama_sparepart: "",
+      ngk_no: "",
       merk: "",
       kategori: "",
       stok: "",
@@ -143,7 +151,9 @@ export default function StokPage() {
     setForm({
       id_sparepart: item.id_sparepart,
       kode_sparepart: item.kode_sparepart,
+      no_sparepart: item.no_sparepart,
       nama_sparepart: item.nama_sparepart,
+      ngk_no: item.ngk_no,
       merk: item.merk,
       kategori: item.kategori,
       stok: item.stok.toString(),
@@ -186,11 +196,24 @@ export default function StokPage() {
         className="bg-gray-900 border border-gray-700 rounded-xl p-6 mb-8 grid md:grid-cols-2 gap-4"
       >
         <input
+          placeholder="No Sparepart"
+          className="input"
+          value={form.no_sparepart}
+          onChange={(e) => setForm({ ...form, no_sparepart: e.target.value })}
+          required
+        />
+        <input
           placeholder="Nama Sparepart"
           className="input"
           value={form.nama_sparepart}
           onChange={(e) => setForm({ ...form, nama_sparepart: e.target.value })}
           required
+        />
+         <input
+          placeholder="NGK No"
+          className="input"
+          value={form.ngk_no}
+          onChange={(e) => setForm({ ...form, ngk_no: e.target.value })}
         />
         <input
           placeholder="Merk"
@@ -289,6 +312,7 @@ export default function StokPage() {
           <thead className="bg-gray-800 text-gray-300 uppercase text-xs">
             <tr>
               <th className="px-4 py-3 text-left">Kode</th>
+              <th className="px-4 py-3 text-left">No Sparepart</th>
               <th className="px-4 py-3 text-left">Nama</th>
               <th className="px-4 py-3 text-left">Kategori</th>
               <th className="px-4 py-3 text-center">Stok</th>
@@ -329,6 +353,7 @@ export default function StokPage() {
                   <td className="px-4 py-3 font-medium">
                     {item.kode_sparepart}
                   </td>
+                  <td className="px-4 py-3">{item.no_sparepart}</td>
                   <td className="px-4 py-3 font-medium">
                     {item.nama_sparepart}
                   </td>
@@ -376,7 +401,13 @@ export default function StokPage() {
                 <b>Kode:</b> {detail.kode_sparepart}
               </p>
               <p>
+                <b>No Sparepart:</b> {detail.no_sparepart}
+              </p>
+              <p>
                 <b>Nama:</b> {detail.nama_sparepart}
+              </p>
+              <p>
+                <b>NGK No:</b> {detail.ngk_no}
               </p>
               <p>
                 <b>Merk:</b> {detail.merk}

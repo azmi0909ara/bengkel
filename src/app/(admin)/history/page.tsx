@@ -81,11 +81,11 @@ export default function HistoryPage() {
       <table className="w-full text-sm border border-gray-700">
         <thead className="bg-gray-800">
           <tr>
-            <th className="p-2">Tanggal</th>
-            <th className="p-2">Pelanggan</th>
-            <th className="p-2">Kendaraan</th>
-            <th className="p-2">Total</th>
-            <th className="p-2">Aksi</th>
+            <th className="p-2 text-left">Tanggal</th>
+            <th className="p-2 text-left">Pelanggan</th>
+            <th className="p-2 text-left">Kendaraan</th>
+            <th className="p-2 text-left">Total</th>
+            <th className="p-2 ">Aksi</th>
           </tr>
         </thead>
         <tbody>
@@ -100,7 +100,7 @@ export default function HistoryPage() {
               <td className="p-2">
                 <button
                   onClick={() => setDetail(h)}
-                  className="px-3 py-1 bg-gray-700 rounded"
+                  className="px-3 py-1 bg-gray-700 rounded text-center w-full"
                 >
                   Detail
                 </button>
@@ -154,15 +154,33 @@ export default function HistoryPage() {
               </tbody>
             </table>
 
+            {/* === Service === */}
+            <table className="w-full text-sm border border-gray-700 mb-4">
+              <thead className="bg-gray-800">
+                <tr>
+                  <th className="p-2 text-left">Keterangan</th>
+                  <th className="p-2 text-left">total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="p-2">Jasa Service</td>
+                  <td className="p-2 text-left">
+                    Rp {detail.biayaServis.toLocaleString("id-ID")}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
             {/* === SPAREPART === */}
             <h3 className="font-semibold mb-2">Sparepart</h3>
             <table className="w-full text-sm border border-gray-700 mb-4">
               <thead className="bg-gray-800">
                 <tr>
                   <th className="p-2 text-left">Nama</th>
-                  <th className="p-2">Qty</th>
-                  <th className="p-2">Harga</th>
-                  <th className="p-2">Subtotal</th>
+                  <th className="p-2 ">Qty</th>
+                  <th className="p-2 text-left">Harga</th>
+                  <th className="p-2 text-left">Subtotal</th>
                 </tr>
               </thead>
               <tbody>

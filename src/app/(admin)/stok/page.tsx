@@ -28,7 +28,7 @@ type Sparepart = {
   satuan: string;
   harga_beli: number;
   harga_jual: number;
-  keterangan: string;
+  sumber: string;
 };
 
 const KATEGORI = [
@@ -64,7 +64,7 @@ export default function StokPage() {
     satuan: "",
     harga_beli: "",
     harga_jual: "",
-    keterangan: "",
+    sumber: "",
   });
 
   // ================= FETCH =================
@@ -108,14 +108,14 @@ export default function StokPage() {
       kode_sparepart: newKode,
       no_sparepart: form.no_sparepart,
       nama_sparepart: form.nama_sparepart,
-      ngk_no: form.ngk_no,
+      ngk_no: form.ngk_no || "",
       merk: form.merk,
       kategori: form.kategori,
       stok: Number(form.stok),
       satuan: form.satuan,
       harga_beli: Number(form.harga_beli),
       harga_jual: Number(form.harga_jual),
-      keterangan: form.keterangan,
+      sumber: form.sumber || "",
     };
 
     if (editId) {
@@ -140,7 +140,7 @@ export default function StokPage() {
       satuan: "",
       harga_beli: "",
       harga_jual: "",
-      keterangan: "",
+      sumber: "",
     });
 
     fetchData();
@@ -160,7 +160,7 @@ export default function StokPage() {
       satuan: item.satuan,
       harga_beli: item.harga_beli.toString(),
       harga_jual: item.harga_jual.toString(),
-      keterangan: item.keterangan,
+      sumber: item.sumber,
     });
 
     formRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -265,10 +265,10 @@ export default function StokPage() {
         />
 
         <textarea
-          placeholder="Keterangan"
+          placeholder="Sumber"
           className="input md:col-span-2"
-          value={form.keterangan}
-          onChange={(e) => setForm({ ...form, keterangan: e.target.value })}
+          value={form.sumber}
+          onChange={(e) => setForm({ ...form, sumber: e.target.value })}
         />
 
         <button className="md:col-span-2 bg-red-600 hover:bg-red-700 py-2 rounded font-semibold">
@@ -408,6 +408,10 @@ export default function StokPage() {
       <td className="border p-2">{detail.no_sparepart}</td>
     </tr>
     <tr>
+      <td className="border p-2 font-semibold">Ngk No</td>
+      <td className="border p-2">{detail.ngk_no}</td>
+    </tr>
+    <tr>
       <td className="border p-2 font-semibold">Nama</td>
       <td className="border p-2">{detail.nama_sparepart}</td>
     </tr>
@@ -442,8 +446,8 @@ export default function StokPage() {
       </td>
     </tr>
     <tr>
-      <td className="border p-2 font-semibold">Keterangan</td>
-      <td className="border p-2">{detail.keterangan}</td>
+      <td className="border p-2 font-semibold">sumber</td>
+      <td className="border p-2">{detail.sumber}</td>
     </tr>
   </tbody>
 </table>

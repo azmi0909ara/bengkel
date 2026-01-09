@@ -40,6 +40,11 @@ const menu = [
     href: '/history',
     icon: HistoryIcon,
   },
+  {
+    label: 'Amount',
+    href: '/pendapatan',
+    icon: NotebookIcon,
+  },
 ]
 
 export default function Sidebar() {

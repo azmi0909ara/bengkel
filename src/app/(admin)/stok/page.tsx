@@ -397,38 +397,57 @@ export default function StokPage() {
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-lg">
             <h2 className="text-lg font-bold mb-4">Detail Sparepart</h2>
             <div className="space-y-2 text-sm">
-              <p>
-                <b>Kode:</b> {detail.kode_sparepart}
-              </p>
-              <p>
-                <b>No Sparepart:</b> {detail.no_sparepart}
-              </p>
-              <p>
-                <b>Nama:</b> {detail.nama_sparepart}
-              </p>
-              <p>
-                <b>NGK No:</b> {detail.ngk_no}
-              </p>
-              <p>
-                <b>Merk:</b> {detail.merk}
-              </p>
-              <p>
-                <b>Kategori:</b> {detail.kategori}
-              </p>
-              <p>
-                <b>Stok:</b> {detail.stok} {detail.satuan}
-              </p>
-              <p>
-                <b>Harga Beli:</b> Rp{" "}
-                {detail.harga_beli.toLocaleString("id-ID")}
-              </p>
-              <p>
-                <b>Harga Jual:</b> Rp{" "}
-                {detail.harga_jual.toLocaleString("id-ID")}
-              </p>
-              <p>
-                <b>Keterangan:</b> {detail.keterangan || "-"}
-              </p>
+              <table className="w-full text-sm border border-gray-700">
+  <tbody>
+    <tr>
+      <td className="border p-2 font-semibold">Kode</td>
+      <td className="border p-2">{detail.kode_sparepart}</td>
+    </tr>
+    <tr>
+      <td className="border p-2 font-semibold">No Part</td>
+      <td className="border p-2">{detail.no_sparepart}</td>
+    </tr>
+    <tr>
+      <td className="border p-2 font-semibold">Nama</td>
+      <td className="border p-2">{detail.nama_sparepart}</td>
+    </tr>
+    <tr>
+      <td className="border p-2 font-semibold">Merek</td>
+      <td className="border p-2">{detail.merk}</td>
+    </tr>
+    <tr>
+      <td className="border p-2 font-semibold">Kode</td>
+      <td className="border p-2">{detail.kode_sparepart}</td>
+    </tr>
+    <tr>
+      <td className="border p-2 font-semibold">Kategori</td>
+      <td className="border p-2">{detail.kategori}</td>
+    </tr>
+    <tr>
+      <td className="border p-2 font-semibold">Stok</td>
+      <td className="border p-2">
+        {detail.stok} {detail.satuan}
+      </td>
+    </tr>
+    <tr>
+      <td className="border p-2 font-semibold">Harga Beli</td>
+      <td className="border p-2">
+        Rp {detail.harga_beli.toLocaleString('id-ID')}
+      </td>
+    </tr>
+    <tr>
+      <td className="border p-2 font-semibold">Harga Jual</td>
+      <td className="border p-2">
+        Rp {detail.harga_jual.toLocaleString('id-ID')}
+      </td>
+    </tr>
+    <tr>
+      <td className="border p-2 font-semibold">Keterangan</td>
+      <td className="border p-2">{detail.keterangan}</td>
+    </tr>
+  </tbody>
+</table>
+
             </div>
 
             <button

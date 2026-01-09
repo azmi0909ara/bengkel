@@ -203,7 +203,7 @@ export default function StokPage() {
           required
         />
         <input
-          placeholder="Nama Sparepart"
+          placeholder="Nama Part"
           className="input"
           value={form.nama_sparepart}
           onChange={(e) => setForm({ ...form, nama_sparepart: e.target.value })}

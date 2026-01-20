@@ -19,8 +19,15 @@ type Pelanggan = {
 type Kendaraan = {
   id: string
   pelangganId: string
+  pelangganNama: string
   nomorPolisi: string
+  nomorRangka: string
+  nomorMesin: string
   merek: string
+  tipe: string
+  tahunProduksi: number
+  warna: string
+  kilometer: number
 }
 
 type Stok = {
@@ -38,6 +45,15 @@ type SparepartDipakai = {
 }
 
 /* ================= CONST ================= */
+const JENIS_SERVIS = [
+  'Servis Ringan',
+  'Servis Lengkap',
+  'Ganti Oli',
+  'Perbaikan Rem',
+  'Kelistrikan',
+  'Tune Up',
+]
+
 const JENIS_PEMBAYARAN = ['Tunai', 'Transfer', 'QRIS']
 const STATUS_KENDARAAN = ['DITUNGGU', 'DITINGGAL']
 
@@ -52,35 +68,39 @@ export default function ServicePage() {
 
   const [tanggal, setTanggal] = useState('')
   const [mekanik, setMekanik] = useState('')
-  const [kmSekarang, setKmSekarang] = useState(0)
+  const [kmSekarang, setKmSekarang] = useState<number>(0)
   const [keluhan, setKeluhan] = useState('')
   const [statusKendaraan, setStatusKendaraan] = useState('DITUNGGU')
   const [jenisPembayaran, setJenisPembayaran] = useState('Tunai')
-  const [biayaServis, setBiayaServis] = useState(0)
+
+  const [jenisServis, setJenisServis] = useState<string[]>([])
+  const [biayaServis, setBiayaServis] = useState<number>(0)
 
   const [sparepart, setSparepart] = useState<SparepartDipakai[]>([])
+
   const [showPreview, setShowPreview] = useState(false)
 
   /* ================= FETCH DATA ================= */
   useEffect(() => {
-    const load = async () => {
-      const p = await getDocs(collection(db, 'pelanggan'))
-      const k = await getDocs(collection(db, 'kendaraan'))
-      const s = await getDocs(collection(db, 'stok'))
+    const loadData = async () => {
+      const pSnap = await getDocs(collection(db, 'pelanggan'))
+      const kSnap = await getDocs(collection(db, 'kendaraan'))
+      const sSnap = await getDocs(collection(db, 'stok'))
 
-      setPelanggan(p.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
-      setKendaraan(k.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
-      setStok(s.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+      setPelanggan(pSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+      setKendaraan(kSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+      setStok(sSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
     }
-    load()
+    loadData()
   }, [])
 
   /* ================= LOGIC ================= */
   const toggleSparepart = (item: Stok) => {
     if (item.stok <= 0) return
 
-    const exist = sparepart.find(sp => sp.id === item.id)
-    if (exist) {
+    const exists = sparepart.find(sp => sp.id === item.id)
+
+    if (exists) {
       setSparepart(prev => prev.filter(sp => sp.id !== item.id))
     } else {
       setSparepart(prev => [
@@ -107,39 +127,33 @@ export default function ServicePage() {
     (sum, s) => sum + s.harga * s.qty,
     0
   )
+
   const totalBayar = biayaServis + totalSparepart
 
-  /* ================= SUBMIT (FIXED TRANSACTION) ================= */
+  /* ================= SUBMIT ================= */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     const p = pelanggan.find(p => p.id === selectedPelanggan)
     const k = kendaraan.find(k => k.id === selectedKendaraan)
+
     if (!p || !k) return alert('Data tidak valid')
 
     try {
       await runTransaction(db, async tx => {
-        // 🔹 1. READ SEMUA STOK DULU
-        const stokSnaps = await Promise.all(
-          sparepart.map(sp => tx.get(doc(db, 'stok', sp.id)))
-        )
+        for (const sp of sparepart) {
+          const stokRef = doc(db, 'stok', sp.id)
+          const snap = await tx.get(stokRef)
 
-        // 🔹 2. VALIDASI STOK
-        stokSnaps.forEach((snap, i) => {
-          const tersedia = snap.data()?.stok ?? 0
-          if (tersedia < sparepart[i].qty) {
-            throw new Error(`Stok ${sparepart[i].nama} tidak mencukupi`)
-          }
-        })
+          const currentStok = snap.data()?.stok ?? 0
+          if (currentStok < sp.qty)
+            throw new Error(`Stok ${sp.nama} tidak mencukupi`)
 
-        // 🔹 3. UPDATE STOK
-        stokSnaps.forEach((snap, i) => {
-          tx.update(snap.ref, {
-            stok: snap.data()!.stok - sparepart[i].qty,
+          tx.update(stokRef, {
+            stok: currentStok - sp.qty,
           })
-        })
+        }
 
-        // 🔹 4. SIMPAN SERVICE
         const serviceRef = doc(collection(db, 'service'))
         tx.set(serviceRef, {
           tanggal: Timestamp.fromDate(new Date(tanggal)),
@@ -152,6 +166,7 @@ export default function ServicePage() {
           keluhan,
           statusKendaraan,
           jenisPembayaran,
+          jenisServis,
           sparepart,
           biayaServis,
           totalSparepart,
@@ -162,11 +177,13 @@ export default function ServicePage() {
       })
 
       alert('Service berhasil disimpan')
-      window.location.reload()
     } catch (err: any) {
       alert(err.message)
     }
   }
+
+  const p = pelanggan.find(p => p.id === selectedPelanggan)
+  const k = kendaraan.find(k => k.id === selectedKendaraan)
 
   /* ================= UI ================= */
   return (
@@ -177,7 +194,9 @@ export default function ServicePage() {
         onSubmit={handleSubmit}
         className="bg-gray-900 border border-gray-700 rounded-xl p-6 space-y-4"
       >
-        <p className="text-sm text-gray-400 mb-2">Tanggal Service</p>
+        {/* --- FORM TETAP --- */}
+
+       <p className="text-sm text-gray-400 mb-2">Tanggal Service</p>
         <input type="date" className="input" value={tanggal} onChange={e => setTanggal(e.target.value)} required />
 
       <p className="text-sm text-gray-400 mb-2">Data Pelanggan Service</p>
@@ -212,7 +231,8 @@ export default function ServicePage() {
         <p className="text-sm text-gray-400 mb-2">Biaya Jasa Service</p>
         <input type="number" className="input" placeholder="Biaya Jasa" value={biayaServis} onChange={e => setBiayaServis(Number(e.target.value))} />
 
-        {/* SPAREPART */}
+        {/* SPAREPART BUTTON */}
+        <p className="text-sm text-gray-400 mb-2">Tambah Sparepart</p>
         <div className="flex flex-wrap gap-2">
           {stok.map(s => {
             const active = sparepart.some(sp => sp.id === s.id)
@@ -221,7 +241,9 @@ export default function ServicePage() {
                 key={s.id}
                 type="button"
                 onClick={() => toggleSparepart(s)}
-                className={`px-3 py-1 rounded border ${active ? 'bg-red-600' : 'bg-gray-800'}`}
+                className={`px-3 py-1 rounded border ${
+                  active ? 'bg-red-600 border-red-500' : 'bg-gray-800 border-gray-700'
+                }`}
               >
                 {s.nama_sparepart}
               </button>
@@ -229,7 +251,7 @@ export default function ServicePage() {
           })}
         </div>
 
- {/* TABEL SPAREPART */}
+        {/* TABEL SPAREPART */}
         <table className="w-full text-sm border border-gray-700">
           <thead className="bg-gray-800">
             <tr>
@@ -256,14 +278,66 @@ export default function ServicePage() {
           </tbody>
         </table>
 
-        <div className="text-right font-bold">
+        <div className="font-bold text-right">
           Total Bayar: Rp {totalBayar.toLocaleString('id-ID')}
         </div>
 
-        <button type="submit" className="w-full bg-red-600 py-2 rounded">
-          Simpan Service
-        </button>
+        {/* ACTION BUTTON */}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setShowPreview(true)}
+            className="w-1/2 bg-gray-700 py-2 rounded"
+          >
+            Preview
+          </button>
+
+          <button
+            type="submit"
+            className="w-1/2 bg-red-600 py-2 rounded"
+          >
+            Simpan Service
+          </button>
+        </div>
       </form>
+
+      {/* ================= MODAL PREVIEW ================= */}
+      {showPreview && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-gray-900 w-full max-w-lg rounded-xl p-6">
+            <h2 className="text-xl font-bold mb-4">Preview Service</h2>
+            <p><b>Tanggal:</b> {tanggal}</p>
+            <p><b>Pelanggan:</b> {p?.nama}</p>
+            <p><b>Kendaraan:</b> {k?.nomorPolisi} - {k?.merek}</p>
+            <p><b>Permitaan/Keluhan:</b> {keluhan}</p>
+            <p><b>Mekanik:</b> {mekanik}</p>
+            <p><b>KM:</b> {kmSekarang}</p>
+            <p><b>Status Kendaraan:</b> {statusKendaraan}</p>
+            <p><b>Jenis Pembayaran:</b> {jenisPembayaran}</p>
+            <p><b>Biaya Servis:</b> Rp {biayaServis.toLocaleString('id-ID')}</p>
+          
+
+            <hr className="my-3 border-gray-700" />
+
+            {sparepart.map(sp => (
+              <p key={sp.id}>
+                {sp.nama} x{sp.qty} = Rp {(sp.harga * sp.qty).toLocaleString('id-ID')}
+              </p>
+            ))}
+
+            <p className="font-bold mt-3">
+              Total: Rp {totalBayar.toLocaleString('id-ID')}
+            </p>
+
+            <button
+              onClick={() => setShowPreview(false)}
+              className="mt-4 w-full bg-gray-700 py-2 rounded"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

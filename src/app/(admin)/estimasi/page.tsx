@@ -1,78 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  collection,
-  getDocs,
-  Timestamp,
-  runTransaction,
-  doc,
-  deleteDoc,
-  addDoc,
-  updateDoc,
-} from "firebase/firestore";
+import { collection, getDocs, Timestamp, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import PartSearch, { EPart } from "@/components/service/PartSearch";
 import { useSparepart } from "@/hooks/useSparepart";
 import { calculateTotal } from "@/lib/calculation";
-import { Estimasi, Kendaraan, Pelanggan } from "@/types/service";
+import { Kendaraan, Pelanggan } from "@/types/service";
+
+/* ================= TYPE ================= */
 
 /* ================= CONST ================= */
 const JENIS_PEMBAYARAN = ["Tunai", "Transfer", "QRIS"];
-const STATUS_KENDARAAN = ["DITUNGGU", "DITINGGAL"];
 
 /* ================= PAGE ================= */
-export default function ServicePage() {
-  const { sparepart, addPart, updateQty, removeItem, setFromEstimasi } =
-    useSparepart();
-
+export default function EstimasiPage() {
+  const { sparepart, addPart, updateQty, removeItem } = useSparepart();
   const [pelanggan, setPelanggan] = useState<Pelanggan[]>([]);
   const [kendaraan, setKendaraan] = useState<Kendaraan[]>([]);
-  const [estimasiList, setEstimasiList] = useState<Estimasi[]>([]);
 
+  const [loading, setLoading] = useState(false);
   const [selectedPelanggan, setSelectedPelanggan] = useState("");
   const [selectedKendaraan, setSelectedKendaraan] = useState("");
   const [biayaServisInput, setBiayaServisInput] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const [tanggal, setTanggal] = useState("");
-  const [mekanik, setMekanik] = useState("");
-  const [kmSekarang, setKmSekarang] = useState("");
-  const [keluhan, setKeluhan] = useState("");
-  const [statusKendaraan, setStatusKendaraan] = useState("DITUNGGU");
-  const [jenisPembayaran, setJenisPembayaran] = useState("Tunai");
   const [diskonInput, setDiskonInput] = useState("");
-
-  const [selectedEstimasi, setSelectedEstimasi] = useState("");
-
-  /* ================= FETCH MASTER ================= */
-  useEffect(() => {
-    const load = async () => {
-      const p = await getDocs(collection(db, "pelanggan"));
-      const k = await getDocs(collection(db, "kendaraan"));
-      const e = await getDocs(collection(db, "estimasi"));
-
-      setPelanggan(p.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
-      setKendaraan(k.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
-      setEstimasiList(e.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
-    };
-    load();
-  }, []);
-
-  /* ================= LOAD ESTIMASI ================= */
-  const loadEstimasi = (estimasiId: string) => {
-    const est = estimasiList.find((e) => e.id === estimasiId);
-    if (!est) return;
-
-    setSelectedPelanggan(est.pelangganId || "");
-    setSelectedKendaraan(est.kendaraanId || "");
-    setKeluhan(est.keluhan || "");
-    setJenisPembayaran(est.jenisPembayaran || "Tunai");
-    setBiayaServisInput(String(est.biayaServis || 0));
-    setDiskonInput(String(est.diskon || 0));
-    setFromEstimasi(est.sparepart);
-  };
-  /* ================= ADD PART ================= */
 
   const biayaServis = Number(biayaServisInput) || 0;
   const diskon = Number(diskonInput) || 0;
@@ -82,6 +33,24 @@ export default function ServicePage() {
     biayaServis,
     diskon
   );
+
+  const [tanggal, setTanggal] = useState("");
+  const [keluhan, setKeluhan] = useState("");
+  const [jenisPembayaran, setJenisPembayaran] = useState("Tunai");
+
+  /* ================= FETCH MASTER ================= */
+  useEffect(() => {
+    const load = async () => {
+      const p = await getDocs(collection(db, "pelanggan"));
+      const k = await getDocs(collection(db, "kendaraan"));
+
+      setPelanggan(p.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
+      setKendaraan(k.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
+    };
+    load();
+  }, []);
+
+  /* ================= ADD PART ================= */
 
   /* ================= SUBMIT ================= */
   const handleSubmit = async (e: React.FormEvent) => {
@@ -96,45 +65,33 @@ export default function ServicePage() {
     }
 
     try {
-      const serviceRef = await addDoc(collection(db, "service"), {
+      await addDoc(collection(db, "estimasi"), {
         tanggal: Timestamp.fromDate(new Date(tanggal)),
         pelangganId: p.id,
         pelangganNama: p.nama,
         kendaraanId: k.id,
         kendaraanLabel: `${k.nomorPolisi} - ${k.merek}`,
         keluhan,
-        mekanik,
-        kmSekarang: Number(kmSekarang || 0),
-        statusKendaraan,
         jenisPembayaran,
         sparepart,
         biayaServis,
         totalSparepart,
         diskon,
         totalBayar,
-        status: "MENUNGGU",
+        status: "ESTIMASI",
         createdAt: Timestamp.now(),
-        estimasiId: selectedEstimasi || null,
       });
 
-      if (selectedEstimasi) {
-        await updateDoc(doc(db, "estimasi", selectedEstimasi), {
-          status: "SERVICE",
-          serviceId: serviceRef.id,
-        });
-      }
-
-      alert("Service berhasil disimpan");
+      alert("Estimasi berhasil disimpan");
 
       /* RESET FORM — TANPA RELOAD */
       setTanggal("");
       setKeluhan("");
-      setBiayaServisInput("");
-      setDiskonInput("");
       setSelectedPelanggan("");
       setSelectedKendaraan("");
-      setSelectedEstimasi("");
-      setFromEstimasi([]);
+      setBiayaServisInput("");
+      setDiskonInput("");
+      // sparepart reset tergantung hook
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -149,10 +106,10 @@ export default function ServicePage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">
-            Service Kendaraan
+            Estimasi Service
           </h1>
           <p className="text-gray-400">
-            Formulir pendaftaran service kendaraan
+            Buat estimasi biaya service sebelum pengerjaan
           </p>
         </div>
 
@@ -162,51 +119,11 @@ export default function ServicePage() {
         >
           {/* Form Content */}
           <div className="p-6 sm:p-8 space-y-8">
-            {/* Load dari Estimasi */}
-            {estimasiList.length > 0 && (
-              <div className="bg-blue-900/20 border border-blue-800 rounded-xl p-4">
-                <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <svg
-                    className="w-5 h-5 text-blue-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
-                  Load dari Estimasi (Opsional)
-                </h2>
-                <div className="flex gap-2">
-                  <select
-                    className="flex-1 bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    value={selectedEstimasi}
-                    onChange={(e) => {
-                      setSelectedEstimasi(e.target.value);
-                      if (e.target.value) loadEstimasi(e.target.value);
-                    }}
-                  >
-                    <option value="">-- Pilih Estimasi --</option>
-                    {estimasiList.map((est) => (
-                      <option key={est.id} value={est.id}>
-                        {est.pelangganNama} - {est.kendaraanLabel} (Rp{" "}
-                        {(est.totalBayar || 0).toLocaleString("id-ID")})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )}
-
             {/* Informasi Umum */}
             <div>
               <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                 <svg
-                  className="w-5 h-5 text-red-500"
+                  className="w-5 h-5 text-blue-500"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -223,11 +140,11 @@ export default function ServicePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Tanggal Service
+                    Tanggal Estimasi
                   </label>
                   <input
                     type="date"
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     required
                     value={tanggal}
                     onChange={(e) => setTanggal(e.target.value)}
@@ -235,14 +152,17 @@ export default function ServicePage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Nama Mekanik
+                    Jenis Pembayaran
                   </label>
-                  <input
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
-                    placeholder="Masukkan nama mekanik"
-                    value={mekanik}
-                    onChange={(e) => setMekanik(e.target.value)}
-                  />
+                  <select
+                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    value={jenisPembayaran}
+                    onChange={(e) => setJenisPembayaran(e.target.value)}
+                  >
+                    {JENIS_PEMBAYARAN.map((j) => (
+                      <option key={j}>{j}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>
@@ -251,7 +171,7 @@ export default function ServicePage() {
             <div>
               <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                 <svg
-                  className="w-5 h-5 text-red-500"
+                  className="w-5 h-5 text-blue-500"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -271,9 +191,10 @@ export default function ServicePage() {
                     Pelanggan
                   </label>
                   <select
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     value={selectedPelanggan}
                     onChange={(e) => setSelectedPelanggan(e.target.value)}
+                    required
                   >
                     <option value="">Pilih Pelanggan</option>
                     {pelanggan.map((p) => (
@@ -288,9 +209,10 @@ export default function ServicePage() {
                     Kendaraan
                   </label>
                   <select
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     value={selectedKendaraan}
                     onChange={(e) => setSelectedKendaraan(e.target.value)}
+                    required
                   >
                     <option value="">Pilih Kendaraan</option>
                     {kendaraan
@@ -309,7 +231,7 @@ export default function ServicePage() {
             <div>
               <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                 <svg
-                  className="w-5 h-5 text-red-500"
+                  className="w-5 h-5 text-blue-500"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -323,61 +245,17 @@ export default function ServicePage() {
                 </svg>
                 Detail Service
               </h2>
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      KM Sekarang
-                    </label>
-                    <input
-                      type="number"
-                      className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
-                      placeholder="0"
-                      min={0}
-                      value={kmSekarang}
-                      onChange={(e) => setKmSekarang(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Status Kendaraan
-                    </label>
-                    <select
-                      className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
-                      value={statusKendaraan}
-                      onChange={(e) => setStatusKendaraan(e.target.value)}
-                    >
-                      {STATUS_KENDARAAN.map((s) => (
-                        <option key={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Jenis Pembayaran
-                    </label>
-                    <select
-                      className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
-                      value={jenisPembayaran}
-                      onChange={(e) => setJenisPembayaran(e.target.value)}
-                    >
-                      {JENIS_PEMBAYARAN.map((j) => (
-                        <option key={j}>{j}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Keluhan
-                  </label>
-                  <textarea
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all min-h-[100px] resize-y"
-                    placeholder="Deskripsikan keluhan kendaraan..."
-                    value={keluhan}
-                    onChange={(e) => setKeluhan(e.target.value)}
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Keluhan / Kebutuhan Service
+                </label>
+                <textarea
+                  className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all min-h-[100px] resize-y"
+                  placeholder="Deskripsikan keluhan atau kebutuhan service..."
+                  value={keluhan}
+                  onChange={(e) => setKeluhan(e.target.value)}
+                  required
+                />
               </div>
             </div>
 
@@ -385,7 +263,7 @@ export default function ServicePage() {
             <div>
               <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                 <svg
-                  className="w-5 h-5 text-red-500"
+                  className="w-5 h-5 text-blue-500"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -397,7 +275,7 @@ export default function ServicePage() {
                     d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg>
-                Biaya & Sparepart
+                Estimasi Biaya & Sparepart
               </h2>
               <div className="space-y-4">
                 <div>
@@ -406,7 +284,7 @@ export default function ServicePage() {
                   </label>
                   <input
                     type="number"
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     value={biayaServisInput}
                     placeholder="0"
                     min={0}
@@ -459,9 +337,8 @@ export default function ServicePage() {
                               <td className="px-4 py-3 text-center">
                                 <input
                                   type="number"
-                                  className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-center text-white focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                  className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-center text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                   value={sp.qty}
-                                  min={1}
                                   onChange={(e) =>
                                     updateQty(sp.id, Number(e.target.value))
                                   }
@@ -507,7 +384,7 @@ export default function ServicePage() {
                   </label>
                   <input
                     type="number"
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     value={diskonInput}
                     placeholder="0"
                     min={0}
@@ -543,12 +420,12 @@ export default function ServicePage() {
                 <div className="flex justify-between gap-8 text-sm">
                   <span className="text-gray-400">Diskon:</span>
                   <span className="text-red-400 font-medium">
-                    - Rp {diskonInput}
+                    - Rp {diskon.toLocaleString("id-ID")}
                   </span>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-sm text-gray-400 mb-1">Total Pembayaran</p>
+                <p className="text-sm text-gray-400 mb-1">Total Estimasi</p>
                 <p className="text-3xl font-bold text-white">
                   Rp {totalBayar.toLocaleString("id-ID")}
                 </p>
@@ -557,7 +434,7 @@ export default function ServicePage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-4 rounded-xl transition duration-400 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-xl shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
             >
               <svg
                 className="w-5 h-5"
@@ -572,7 +449,7 @@ export default function ServicePage() {
                   d="M5 13l4 4L19 7"
                 />
               </svg>
-              Simpan Service
+              Simpan Estimasi
             </button>
           </div>
         </form>

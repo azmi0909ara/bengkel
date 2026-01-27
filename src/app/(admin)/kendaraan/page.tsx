@@ -179,7 +179,7 @@ export default function KendaraanPage() {
 
   /* ================== UI ================== */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black p-6 text-white">
+    <div className="min-h-screen bg-linear-to-br from-gray-900 via-gray-800 to-black p-6 text-white">
       <h1 className="text-2xl font-bold mb-6">Data Kendaraan</h1>
 
       {/* ================= FORM ================= */}

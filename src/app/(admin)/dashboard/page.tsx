@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 type Stok = {
@@ -28,7 +28,14 @@ export default function Dashboard() {
       setStok(stokSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
 
       // Service
-      const serviceSnap = await getDocs(collection(db, "service"));
+      // Service (NON ARSIP)
+      const serviceQuery = query(
+        collection(db, "service"),
+        where("status", "!=", "ARSIP")
+      );
+
+      const serviceSnap = await getDocs(serviceQuery);
+
       setService(
         serviceSnap.docs.map((d) => ({
           id: d.id,

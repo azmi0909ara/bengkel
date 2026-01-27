@@ -89,24 +89,54 @@ export default function HistoryPage() {
           </tr>
         </thead>
         <tbody>
-          {filteredHistory.map((h) => (
-            <tr key={h.id} className="border-t border-gray-700">
-              <td className="p-2">
-                {h.tanggal?.toDate().toLocaleDateString("id-ID")}
-              </td>
-              <td className="p-2">{h.pelangganNama}</td>
-              <td className="p-2">{h.kendaraanLabel}</td>
-              <td className="p-2">Rp {h.totalBayar.toLocaleString("id-ID")}</td>
-              <td className="p-2">
-                <button
-                  onClick={() => setDetail(h)}
-                  className="px-3 py-1 bg-gray-700 rounded text-center w-full"
-                >
-                  Detail
-                </button>
+          {filteredHistory.length > 0 ? (
+            filteredHistory.map((h) => (
+              <tr key={h.id} className="border-t border-gray-700">
+                <td className="p-2">
+                  {h.tanggal?.toDate().toLocaleDateString("id-ID")}
+                </td>
+                <td className="p-2">{h.pelangganNama}</td>
+                <td className="p-2">{h.kendaraanLabel}</td>
+                <td className="p-2">
+                  Rp {h.totalBayar.toLocaleString("id-ID")}
+                </td>
+                <td className="p-2">
+                  <button
+                    onClick={() => setDetail(h)}
+                    className="px-3 py-1 bg-gray-700 rounded text-center w-full"
+                  >
+                    Detail
+                  </button>
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan={6} className="p-12 text-center">
+                <div className="flex flex-col items-center gap-3 text-gray-400">
+                  <svg
+                    className="w-16 h-16"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  <p className="text-lg font-medium text-gray-300">
+                    Belum Ada History
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    history transaksi akan muncul di sini
+                  </p>
+                </div>
               </td>
             </tr>
-          ))}
+          )}
         </tbody>
       </table>
 

@@ -6,9 +6,11 @@ import {
   getDocs,
   doc,
   updateDoc,
-  deleteDoc,
-  setDoc,
   Timestamp,
+  onSnapshot,
+  runTransaction,
+  query,
+  where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import InvoiceModal from "./components/InvoiceModal";
@@ -35,6 +37,7 @@ type Service = {
   }[];
   biayaServis: number;
   totalSparepart: number;
+  diskon: number;
   totalBayar: number;
   status: "MENUNGGU" | "SELESAI";
   createdAt: any;
@@ -79,16 +82,27 @@ export default function TransaksiPage() {
 
   /* ================= FETCH ================= */
   useEffect(() => {
-    const load = async () => {
-      const sSnap = await getDocs(collection(db, "service"));
+    // realtime service (NON-ARSIP)
+    const q = query(collection(db, "service"), where("status", "!=", "ARSIP"));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setService(
+        snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
+      );
+    });
+
+    // master data (load once)
+    const loadMaster = async () => {
       const pSnap = await getDocs(collection(db, "pelanggan"));
       const kSnap = await getDocs(collection(db, "kendaraan"));
 
-      setService(sSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
       setPelanggan(pSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
       setKendaraan(kSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
     };
-    load();
+
+    loadMaster();
+
+    return () => unsubscribe();
   }, []);
 
   /* ================= ACTION ================= */
@@ -102,12 +116,20 @@ export default function TransaksiPage() {
   };
 
   const clearToHistory = async (data: Service) => {
-    await setDoc(doc(db, "history", data.id), {
-      ...data,
-      clearedAt: Timestamp.now(),
-    });
+    await runTransaction(db, async (tx) => {
+      const serviceRef = doc(db, "service", data.id);
+      const historyRef = doc(db, "history", data.id);
 
-    await deleteDoc(doc(db, "service", data.id));
+      tx.set(historyRef, {
+        ...data,
+        clearedAt: Timestamp.now(),
+      });
+
+      tx.update(serviceRef, {
+        status: "ARSIP",
+        archiveAt: Timestamp.now(),
+      });
+    });
 
     setService((prev) => prev.filter((s) => s.id !== data.id));
     setDetail(null);
@@ -352,14 +374,8 @@ export default function TransaksiPage() {
               </tbody>
             </table>
 
-            <h2 className="font-semibold mb-1">Layanan / Jasa</h2>
+            <h2 className="font-semibold mb-1">💰 Rincian Biaya</h2>
             <table className="w-full text-sm border border-gray-700 mb-4">
-              <thead className="bg-gray-800">
-                <tr>
-                  <th className="p-2 text-left">Layanan</th>
-                  <th className=" p-2 text-right w-32">Subtotal</th>
-                </tr>
-              </thead>
               <tbody>
                 <tr>
                   <td className="p-2">Jasa Service</td>
@@ -367,30 +383,55 @@ export default function TransaksiPage() {
                     Rp {detail.biayaServis.toLocaleString("id-ID")}
                   </td>
                 </tr>
+                <tr>
+                  <td className="p-2">Total Sparepart</td>
+                  <td className="p-2 text-right">
+                    Rp {detail.totalSparepart.toLocaleString("id-ID")}
+                  </td>
+                </tr>
+                <tr className="bg-gray-800">
+                  <td className="p-2 font-semibold">Subtotal</td>
+                  <td className="p-2 text-right font-semibold">
+                    Rp{" "}
+                    {(
+                      detail.biayaServis + detail.totalSparepart
+                    ).toLocaleString("id-ID")}
+                  </td>
+                </tr>
+                {(detail.diskon || 0) > 0 && (
+                  <tr className="text-red-400">
+                    <td className="p-2">Diskon</td>
+                    <td className="p-2 text-right">
+                      - Rp {(detail.diskon || 0).toLocaleString("id-ID")}
+                    </td>
+                  </tr>
+                )}
+                <tr className="bg-green-900/30">
+                  <td className="p-2 font-bold text-lg">TOTAL BAYAR</td>
+                  <td className="p-2 text-right font-bold text-lg">
+                    Rp {(detail.totalBayar || 0).toLocaleString("id-ID")}
+                  </td>
+                </tr>
               </tbody>
             </table>
-
-            <p className="text-right font-bold mb-4">
-              Total Bayar: Rp {detail.totalBayar.toLocaleString("id-ID")}
-            </p>
 
             <div className="flex gap-2">
               <button
                 onClick={() => setShowInvoice(true)}
-                className="w-1/2 bg-blue-600 py-2 rounded"
+                className="w-1/2 bg-blue-600 py-2 rounded hover:bg-blue-700"
               >
                 Print Invoice
               </button>
 
               <button
                 onClick={() => clearToHistory(detail)}
-                className="w-1/2 bg-red-600 py-2 rounded"
+                className="w-1/2 bg-red-600 py-2 rounded hover:bg-red-700"
               >
                 Clear → History
               </button>
               <button
                 onClick={() => setDetail(null)}
-                className="w-1/2 bg-gray-700 py-2 rounded"
+                className="w-1/2 bg-gray-700 py-2 rounded hover:bg-gray-600"
               >
                 Tutup
               </button>

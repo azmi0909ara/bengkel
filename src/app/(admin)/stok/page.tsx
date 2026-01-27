@@ -93,9 +93,39 @@ export default function StokPage() {
     return `KP-${String(last + 1).padStart(3, "0")}`;
   };
 
+  const generateSearchKey = (...texts: string[]) => {
+    const keys = new Set<string>();
+
+    texts.forEach((text) => {
+      if (!text) return;
+
+      const clean = text.toUpperCase().trim();
+
+      // prefix full string
+      for (let i = 1; i <= clean.length; i++) {
+        keys.add(clean.substring(0, i));
+      }
+
+      // prefix per kata
+      clean.split(" ").forEach((word) => {
+        for (let i = 1; i <= word.length; i++) {
+          keys.add(word.substring(0, i));
+        }
+      });
+    });
+
+    return Array.from(keys);
+  };
+
   // ================= SUBMIT =================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const search_key = generateSearchKey(
+      form.no_sparepart,
+      form.nama_sparepart,
+      form.merk
+    );
 
     const newIdSparepart = editId
       ? form.id_sparepart
@@ -116,6 +146,7 @@ export default function StokPage() {
       harga_beli: Number(form.harga_beli),
       harga_jual: Number(form.harga_jual),
       sumber: form.sumber || "",
+      search_key,
     };
 
     if (editId) {
@@ -174,7 +205,7 @@ export default function StokPage() {
 
   // ================= FILTER =================
   const filteredData = filterData.filter((item) =>
-    `${item.nama_sparepart} ${item.kode_sparepart} ${item.merk}`
+    `${item.nama_sparepart} ${item.kode_sparepart} ${item.merk} ${item.no_sparepart}`
       .toLowerCase()
       .includes(search.toLowerCase())
   );
@@ -186,7 +217,7 @@ export default function StokPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black p-6 text-white">
+    <div className="min-h-screen bg-linear-to-br from-gray-900 via-gray-800 to-black p-6 text-white">
       <h1 className="text-2xl font-bold mb-6">Stok Sparepart</h1>
 
       {/* FORM */}
@@ -209,7 +240,7 @@ export default function StokPage() {
           onChange={(e) => setForm({ ...form, nama_sparepart: e.target.value })}
           required
         />
-         <input
+        <input
           placeholder="NGK No"
           className="input"
           value={form.ngk_no}
@@ -398,60 +429,59 @@ export default function StokPage() {
             <h2 className="text-lg font-bold mb-4">Detail Sparepart</h2>
             <div className="space-y-2 text-sm">
               <table className="w-full text-sm border border-gray-700">
-  <tbody>
-    <tr>
-      <td className="border p-2 font-semibold">Kode</td>
-      <td className="border p-2">{detail.kode_sparepart}</td>
-    </tr>
-    <tr>
-      <td className="border p-2 font-semibold">No Part</td>
-      <td className="border p-2">{detail.no_sparepart}</td>
-    </tr>
-    <tr>
-      <td className="border p-2 font-semibold">Ngk No</td>
-      <td className="border p-2">{detail.ngk_no}</td>
-    </tr>
-    <tr>
-      <td className="border p-2 font-semibold">Nama</td>
-      <td className="border p-2">{detail.nama_sparepart}</td>
-    </tr>
-    <tr>
-      <td className="border p-2 font-semibold">Merek</td>
-      <td className="border p-2">{detail.merk}</td>
-    </tr>
-    <tr>
-      <td className="border p-2 font-semibold">Kode</td>
-      <td className="border p-2">{detail.kode_sparepart}</td>
-    </tr>
-    <tr>
-      <td className="border p-2 font-semibold">Kategori</td>
-      <td className="border p-2">{detail.kategori}</td>
-    </tr>
-    <tr>
-      <td className="border p-2 font-semibold">Stok</td>
-      <td className="border p-2">
-        {detail.stok} {detail.satuan}
-      </td>
-    </tr>
-    <tr>
-      <td className="border p-2 font-semibold">Harga Beli</td>
-      <td className="border p-2">
-        Rp {detail.harga_beli.toLocaleString('id-ID')}
-      </td>
-    </tr>
-    <tr>
-      <td className="border p-2 font-semibold">Harga Jual</td>
-      <td className="border p-2">
-        Rp {detail.harga_jual.toLocaleString('id-ID')}
-      </td>
-    </tr>
-    <tr>
-      <td className="border p-2 font-semibold">sumber</td>
-      <td className="border p-2">{detail.sumber}</td>
-    </tr>
-  </tbody>
-</table>
-
+                <tbody>
+                  <tr>
+                    <td className="border p-2 font-semibold">Kode</td>
+                    <td className="border p-2">{detail.kode_sparepart}</td>
+                  </tr>
+                  <tr>
+                    <td className="border p-2 font-semibold">No Part</td>
+                    <td className="border p-2">{detail.no_sparepart}</td>
+                  </tr>
+                  <tr>
+                    <td className="border p-2 font-semibold">Ngk No</td>
+                    <td className="border p-2">{detail.ngk_no}</td>
+                  </tr>
+                  <tr>
+                    <td className="border p-2 font-semibold">Nama</td>
+                    <td className="border p-2">{detail.nama_sparepart}</td>
+                  </tr>
+                  <tr>
+                    <td className="border p-2 font-semibold">Merek</td>
+                    <td className="border p-2">{detail.merk}</td>
+                  </tr>
+                  <tr>
+                    <td className="border p-2 font-semibold">Kode</td>
+                    <td className="border p-2">{detail.kode_sparepart}</td>
+                  </tr>
+                  <tr>
+                    <td className="border p-2 font-semibold">Kategori</td>
+                    <td className="border p-2">{detail.kategori}</td>
+                  </tr>
+                  <tr>
+                    <td className="border p-2 font-semibold">Stok</td>
+                    <td className="border p-2">
+                      {detail.stok} {detail.satuan}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="border p-2 font-semibold">Harga Beli</td>
+                    <td className="border p-2">
+                      Rp {detail.harga_beli.toLocaleString("id-ID")}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="border p-2 font-semibold">Harga Jual</td>
+                    <td className="border p-2">
+                      Rp {detail.harga_jual.toLocaleString("id-ID")}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="border p-2 font-semibold">sumber</td>
+                    <td className="border p-2">{detail.sumber}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
 
             <button

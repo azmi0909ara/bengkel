@@ -15,6 +15,8 @@ export type SparepartDipakai = {
   nama: string;
   harga: number;
   qty: number;
+  unit: "PCS" | "PACK";
+  pack_size?: number | null;
 };
 
 export type Estimasi = {

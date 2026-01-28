@@ -23,7 +23,7 @@ type Service = {
   pelangganNama: string;
   kendaraanId: string;
   kendaraanLabel: string;
-  mekanikNama: string;
+  mekanik: string;
   kmSekarang: number;
   keluhan: string;
   statusKendaraan: string;
@@ -116,23 +116,41 @@ export default function TransaksiPage() {
   };
 
   const clearToHistory = async (data: Service) => {
-    await runTransaction(db, async (tx) => {
-      const serviceRef = doc(db, "service", data.id);
-      const historyRef = doc(db, "history", data.id);
+    // 1️⃣ Cegah kalau belum bayar
+    if (data.status === "MENUNGGU") {
+      alert("Service belum dibayar");
+      return;
+    }
 
-      tx.set(historyRef, {
-        ...data,
-        clearedAt: Timestamp.now(),
+    // 2️⃣ Konfirmasi user
+    const ok = confirm("Pindahkan service ke history?");
+    if (!ok) return;
+
+    try {
+      await runTransaction(db, async (tx) => {
+        const serviceRef = doc(db, "service", data.id);
+        const historyRef = doc(db, "history", data.id);
+
+        // 3️⃣ Copy ke history
+        tx.set(historyRef, {
+          ...data,
+          status: "ARSIP",
+          clearedAt: Timestamp.now(),
+        });
+
+        // 4️⃣ Update service (atau bisa delete)
+        tx.update(serviceRef, {
+          status: "ARSIP",
+          archiveAt: Timestamp.now(),
+        });
       });
 
-      tx.update(serviceRef, {
-        status: "ARSIP",
-        archiveAt: Timestamp.now(),
-      });
-    });
-
-    setService((prev) => prev.filter((s) => s.id !== data.id));
-    setDetail(null);
+      // 5️⃣ Update UI SETELAH sukses
+      setService((prev) => prev.filter((s) => s.id !== data.id));
+      setDetail(null);
+    } catch (err: any) {
+      alert(err.message || "Gagal memindahkan ke history");
+    }
   };
 
   const p = pelanggan.find((p) => p.id === detail?.pelangganId);
@@ -313,7 +331,7 @@ export default function TransaksiPage() {
                 </tr>
                 <tr>
                   <td className="p-2 border">Mekanik</td>
-                  <td className="p-2 border">{detail.mekanikNama}</td>
+                  <td className="p-2 border">{detail.mekanik}</td>
                 </tr>
                 <tr>
                   <td className="p-2 border">Keluhan</td>

@@ -26,6 +26,8 @@ type Sparepart = {
   kategori: string;
   stok: number;
   satuan: string;
+  pack_size?: number;
+  pack_label?: string;
   harga_beli: number;
   harga_jual: number;
   sumber: string;
@@ -62,6 +64,8 @@ export default function StokPage() {
     kategori: "",
     stok: "",
     satuan: "",
+    pack_size: "",
+    pack_label: "",
     harga_beli: "",
     harga_jual: "",
     sumber: "",
@@ -132,6 +136,14 @@ export default function StokPage() {
       : form.id_sparepart || generateIdSparepart();
 
     const newKode = editId ? form.kode_sparepart : getNextKodeSparepart(data);
+    const inputStok = Number(form.stok);
+    const packSize = Number(form.pack_size) || 1;
+
+    const isPack = form.pack_size && form.pack_label;
+
+    const stokFinal = isPack
+      ? Number(form.stok) * Number(form.pack_size)
+      : Number(form.stok);
 
     const payload = {
       id_sparepart: newIdSparepart,
@@ -141,8 +153,10 @@ export default function StokPage() {
       ngk_no: form.ngk_no || "",
       merk: form.merk,
       kategori: form.kategori,
-      stok: Number(form.stok),
-      satuan: form.satuan,
+      stok: stokFinal,
+      satuan: isPack ? "PCS" : form.satuan,
+      pack_size: isPack ? Number(form.pack_size) : null,
+      pack_label: isPack ? form.pack_label : null,
       harga_beli: Number(form.harga_beli),
       harga_jual: Number(form.harga_jual),
       sumber: form.sumber || "",
@@ -168,6 +182,8 @@ export default function StokPage() {
       merk: "",
       kategori: "",
       stok: "",
+      pack_size: "",
+      pack_label: "",
       satuan: "",
       harga_beli: "",
       harga_jual: "",
@@ -189,6 +205,8 @@ export default function StokPage() {
       kategori: item.kategori,
       stok: item.stok.toString(),
       satuan: item.satuan,
+      pack_size: item.pack_size?.toString() || "",
+      pack_label: item.pack_label || "",
       harga_beli: item.harga_beli.toString(),
       harga_jual: item.harga_jual.toString(),
       sumber: item.sumber,
@@ -233,6 +251,21 @@ export default function StokPage() {
           onChange={(e) => setForm({ ...form, no_sparepart: e.target.value })}
           required
         />
+
+        <input
+          type="number"
+          placeholder="Isi per pack (opsional)"
+          className="input"
+          value={form.pack_size || ""}
+          onChange={(e) => setForm({ ...form, pack_size: e.target.value })}
+        />
+
+        <input
+          placeholder="Label pack (BOTOL / PACK / DRUM)"
+          className="input"
+          value={form.pack_label || ""}
+          onChange={(e) => setForm({ ...form, pack_label: e.target.value })}
+        />
         <input
           placeholder="Nama Part"
           className="input"
@@ -273,6 +306,7 @@ export default function StokPage() {
           onChange={(e) => setForm({ ...form, stok: e.target.value })}
           required
         />
+
         <input
           placeholder="Satuan (pcs / set)"
           className="input"
@@ -389,7 +423,22 @@ export default function StokPage() {
                     {item.nama_sparepart}
                   </td>
                   <td className="px-4 py-3">{item.kategori}</td>
-                  <td className="px-4 py-3 text-center">{item.stok}</td>
+                  <td className="px-4 py-3 text-center">
+                    {item.pack_size ? (
+                      <>
+                        {Math.floor(item.stok / item.pack_size)}{" "}
+                        {item.pack_label}
+                        <div className="text-xs text-gray-400">
+                          ≈ {item.stok} PCS
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {item.stok} {item.satuan}
+                      </>
+                    )}
+                  </td>
+
                   <td className="px-4 py-3">
                     Rp {item.harga_jual.toLocaleString("id-ID")}
                   </td>

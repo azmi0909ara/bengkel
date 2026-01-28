@@ -1,29 +1,39 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, Timestamp, addDoc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  Timestamp,
+  addDoc,
+  getDoc,
+  doc,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import PartSearch, { EPart } from "@/components/service/PartSearch";
 import { useSparepart } from "@/hooks/useSparepart";
 import { calculateTotal } from "@/lib/calculation";
-import { Kendaraan, Pelanggan } from "@/types/service";
-
-/* ================= TYPE ================= */
+import { Estimasi, Kendaraan, Pelanggan } from "@/types/service";
+import EstimasiPrint from "../transaksi/components/EstimasiPrint";
 
 /* ================= CONST ================= */
 const JENIS_PEMBAYARAN = ["Tunai", "Transfer", "QRIS"];
 
 /* ================= PAGE ================= */
 export default function EstimasiPage() {
-  const { sparepart, addPart, updateQty, removeItem } = useSparepart();
+  const { sparepart, addPart, updateQty, removeItem, updateUnit } =
+    useSparepart();
   const [pelanggan, setPelanggan] = useState<Pelanggan[]>([]);
   const [kendaraan, setKendaraan] = useState<Kendaraan[]>([]);
 
   const [loading, setLoading] = useState(false);
+  const [lastEstimasiId, setLastEstimasiId] = useState<string | null>(null);
   const [selectedPelanggan, setSelectedPelanggan] = useState("");
   const [selectedKendaraan, setSelectedKendaraan] = useState("");
   const [biayaServisInput, setBiayaServisInput] = useState("");
   const [diskonInput, setDiskonInput] = useState("");
+  const [lastEstimasi, setLastEstimasi] = useState<Estimasi | null>(null);
+  const [showModal, setShowModal] = useState(false);
 
   const biayaServis = Number(biayaServisInput) || 0;
   const diskon = Number(diskonInput) || 0;
@@ -50,9 +60,8 @@ export default function EstimasiPage() {
     load();
   }, []);
 
-  /* ================= ADD PART ================= */
-
   /* ================= SUBMIT ================= */
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -65,7 +74,7 @@ export default function EstimasiPage() {
     }
 
     try {
-      await addDoc(collection(db, "estimasi"), {
+      const docRef = await addDoc(collection(db, "estimasi"), {
         tanggal: Timestamp.fromDate(new Date(tanggal)),
         pelangganId: p.id,
         pelangganNama: p.nama,
@@ -82,21 +91,46 @@ export default function EstimasiPage() {
         createdAt: Timestamp.now(),
       });
 
-      alert("Estimasi berhasil disimpan");
+      setLastEstimasiId(docRef.id);
+      setShowModal(true);
 
-      /* RESET FORM — TANPA RELOAD */
-      setTanggal("");
-      setKeluhan("");
-      setSelectedPelanggan("");
-      setSelectedKendaraan("");
-      setBiayaServisInput("");
-      setDiskonInput("");
-      // sparepart reset tergantung hook
+      alert("Estimasi berhasil disimpan");
     } catch (err: any) {
       alert(err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    if (!lastEstimasiId) return;
+
+    const loadEstimasi = async () => {
+      const snap = await getDoc(doc(db, "estimasi", lastEstimasiId));
+      if (!snap.exists()) return;
+
+      const data = snap.data() as Omit<Estimasi, "id">;
+
+      setLastEstimasi({
+        id: snap.id,
+        ...data,
+      });
+    };
+
+    loadEstimasi();
+  }, [lastEstimasiId]);
+
+  const handleCreateNew = () => {
+    setShowModal(false);
+    setLastEstimasi(null);
+    setLastEstimasiId(null);
+    setSelectedPelanggan("");
+    setSelectedKendaraan("");
+    setBiayaServisInput("");
+    setDiskonInput("");
+    setTanggal("");
+    setKeluhan("");
+    setJenisPembayaran("Tunai");
   };
 
   /* ================= UI ================= */
@@ -112,6 +146,119 @@ export default function EstimasiPage() {
             Buat estimasi biaya service sebelum pengerjaan
           </p>
         </div>
+
+        {/* Success Banner - Tampil jika ada estimasi terakhir */}
+        {lastEstimasi && !showModal && (
+          <div className="bg-green-900/20 border border-green-700 rounded-xl p-4 mb-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-green-600 rounded-full p-2 flex-shrink-0">
+                  <svg
+                    className="w-6 h-6 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-white font-semibold">
+                    Estimasi berhasil dibuat!
+                  </p>
+                  <p className="text-gray-400 text-sm truncate">
+                    ID: {lastEstimasi.id} - {lastEstimasi.pelangganNama}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() => setShowModal(true)}
+                  className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2 text-sm"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                    />
+                  </svg>
+                  Lihat/Print
+                </button>
+                <button
+                  onClick={handleCreateNew}
+                  className="flex-1 sm:flex-none bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2 text-sm"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  Buat Baru
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Print */}
+        {showModal && lastEstimasi && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-gray-900 rounded-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-800">
+              <div className="sticky top-0 bg-gray-900 border-b border-gray-800 p-4 flex justify-between items-center z-10">
+                <h3 className="text-xl font-semibold text-white">
+                  Estimasi Berhasil Dibuat
+                </h3>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-800 rounded-lg"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6">
+                <EstimasiPrint service={lastEstimasi} />
+              </div>
+            </div>
+          </div>
+        )}
 
         <form
           onSubmit={handleSubmit}
@@ -144,7 +291,7 @@ export default function EstimasiPage() {
                   </label>
                   <input
                     type="date"
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     required
                     value={tanggal}
                     onChange={(e) => setTanggal(e.target.value)}
@@ -155,7 +302,7 @@ export default function EstimasiPage() {
                     Jenis Pembayaran
                   </label>
                   <select
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     value={jenisPembayaran}
                     onChange={(e) => setJenisPembayaran(e.target.value)}
                   >
@@ -191,7 +338,7 @@ export default function EstimasiPage() {
                     Pelanggan
                   </label>
                   <select
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     value={selectedPelanggan}
                     onChange={(e) => setSelectedPelanggan(e.target.value)}
                     required
@@ -209,7 +356,7 @@ export default function EstimasiPage() {
                     Kendaraan
                   </label>
                   <select
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     value={selectedKendaraan}
                     onChange={(e) => setSelectedKendaraan(e.target.value)}
                     required
@@ -250,7 +397,7 @@ export default function EstimasiPage() {
                   Keluhan / Kebutuhan Service
                 </label>
                 <textarea
-                  className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all min-h-[100px] resize-y"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all min-h-[100px] resize-y"
                   placeholder="Deskripsikan keluhan atau kebutuhan service..."
                   value={keluhan}
                   onChange={(e) => setKeluhan(e.target.value)}
@@ -284,7 +431,7 @@ export default function EstimasiPage() {
                   </label>
                   <input
                     type="number"
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     value={biayaServisInput}
                     placeholder="0"
                     min={0}
@@ -298,6 +445,30 @@ export default function EstimasiPage() {
                     Cari Sparepart
                   </label>
                   <PartSearch onAdd={addPart} />
+                </div>
+
+                <div className="mb-3">
+                  <a
+                    href="https://www.suzuki.co.id/eparts/ertiga-type-1-2-3/engine/figure/18503"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-4 py-2 rounded-lg font-medium transition-all shadow-md hover:shadow-lg"
+                  >
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                      />
+                    </svg>
+                    Go to Suzuki E-Parts
+                  </a>
                 </div>
 
                 {/* Tabel Sparepart */}
@@ -337,12 +508,32 @@ export default function EstimasiPage() {
                               <td className="px-4 py-3 text-center">
                                 <input
                                   type="number"
-                                  className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-center text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-center text-white focus:ring-2 focus:ring-red-500 focus:border-transparent"
                                   value={sp.qty}
+                                  min={1}
                                   onChange={(e) =>
                                     updateQty(sp.id, Number(e.target.value))
                                   }
                                 />
+                                <select
+                                  value={sp.unit}
+                                  onChange={(e) =>
+                                    updateUnit(
+                                      sp.id,
+                                      e.target.value as "PCS" | "PACK"
+                                    )
+                                  }
+                                  className="ml-2 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-white"
+                                >
+                                  <option value="PCS">PCS</option>
+
+                                  {/* PACK hanya muncul kalau sparepart punya pack */}
+                                  {sp.pack_size && (
+                                    <option value="PACK">
+                                      PACK ({sp.pack_size} PCS)
+                                    </option>
+                                  )}
+                                </select>
                               </td>
                               <td className="px-4 py-3 text-right font-semibold text-white">
                                 Rp {(sp.harga * sp.qty).toLocaleString("id-ID")}
@@ -384,7 +575,7 @@ export default function EstimasiPage() {
                   </label>
                   <input
                     type="number"
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     value={diskonInput}
                     placeholder="0"
                     min={0}
@@ -398,7 +589,7 @@ export default function EstimasiPage() {
           {/* Summary & Submit */}
           <div className="bg-gray-800/50 border-t border-gray-800 px-6 sm:px-8 py-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-              <div className="space-y-1">
+              <div className="space-y-1 w-full sm:w-auto">
                 <div className="flex justify-between gap-8 text-sm">
                   <span className="text-gray-400">Biaya Jasa:</span>
                   <span className="text-white font-medium">
@@ -424,7 +615,7 @@ export default function EstimasiPage() {
                   </span>
                 </div>
               </div>
-              <div className="text-right">
+              <div className="text-right w-full sm:w-auto">
                 <p className="text-sm text-gray-400 mb-1">Total Estimasi</p>
                 <p className="text-3xl font-bold text-white">
                   Rp {totalBayar.toLocaleString("id-ID")}
@@ -434,7 +625,7 @@ export default function EstimasiPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-xl shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white font-semibold py-4 rounded-xl shadow-lg hover:shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg
                 className="w-5 h-5"
@@ -449,7 +640,7 @@ export default function EstimasiPage() {
                   d="M5 13l4 4L19 7"
                 />
               </svg>
-              Simpan Estimasi
+              {loading ? "Menyimpan..." : "Simpan Estimasi"}
             </button>
           </div>
         </form>

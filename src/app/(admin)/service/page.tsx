@@ -7,9 +7,6 @@ import {
   Timestamp,
   runTransaction,
   doc,
-  deleteDoc,
-  addDoc,
-  updateDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import PartSearch, { EPart } from "@/components/service/PartSearch";
@@ -21,10 +18,25 @@ import { Estimasi, Kendaraan, Pelanggan } from "@/types/service";
 const JENIS_PEMBAYARAN = ["Tunai", "Transfer", "QRIS"];
 const STATUS_KENDARAAN = ["DITUNGGU", "DITINGGAL"];
 
+function toPcs(qty: number, unit: "PCS" | "PACK", packSize?: number | null) {
+  if (unit === "PACK") {
+    if (!packSize) {
+      throw new Error("Sparepart ini tidak memiliki pack");
+    }
+    return qty * packSize;
+  }
+  return qty;
+}
 /* ================= PAGE ================= */
 export default function ServicePage() {
-  const { sparepart, addPart, updateQty, removeItem, setFromEstimasi } =
-    useSparepart();
+  const {
+    sparepart,
+    addPart,
+    updateQty,
+    removeItem,
+    setFromEstimasi,
+    updateUnit,
+  } = useSparepart();
 
   const [pelanggan, setPelanggan] = useState<Pelanggan[]>([]);
   const [kendaraan, setKendaraan] = useState<Kendaraan[]>([]);
@@ -90,43 +102,85 @@ export default function ServicePage() {
 
     const p = pelanggan.find((p) => p.id === selectedPelanggan);
     const k = kendaraan.find((k) => k.id === selectedKendaraan);
+
     if (!p || !k) {
       setLoading(false);
       return alert("Data tidak valid");
     }
 
     try {
-      const serviceRef = await addDoc(collection(db, "service"), {
-        tanggal: Timestamp.fromDate(new Date(tanggal)),
-        pelangganId: p.id,
-        pelangganNama: p.nama,
-        kendaraanId: k.id,
-        kendaraanLabel: `${k.nomorPolisi} - ${k.merek}`,
-        keluhan,
-        mekanik,
-        kmSekarang: Number(kmSekarang || 0),
-        statusKendaraan,
-        jenisPembayaran,
-        sparepart,
-        biayaServis,
-        totalSparepart,
-        diskon,
-        totalBayar,
-        status: "MENUNGGU",
-        createdAt: Timestamp.now(),
-        estimasiId: selectedEstimasi || null,
+      await runTransaction(db, async (transaction) => {
+        /* =======================
+         1️⃣ VALIDASI & KURANGI STOK
+      ======================= */
+        for (const item of sparepart) {
+          const stokRef = doc(db, "stok", item.id);
+
+          const stokSnap = await transaction.get(stokRef);
+          if (!stokSnap.exists()) {
+            throw new Error(`Stok ${item.nama} tidak ditemukan`);
+          }
+
+          const stokData = stokSnap.data();
+          const stokSaatIni = stokData.stok;
+
+          // 🔥 KONVERSI KE PCS
+          const qtyPcs = toPcs(
+            item.qty,
+            item.unit ?? "PCS",
+            stokData.pack_size
+          );
+
+          if (stokSaatIni < qtyPcs) {
+            throw new Error(`Stok ${item.nama} tidak cukup`);
+          }
+
+          transaction.update(stokRef, {
+            stok: stokSaatIni - qtyPcs,
+          });
+        }
+
+        /* =======================
+         2️⃣ SIMPAN SERVICE
+      ======================= */
+        const serviceRef = doc(collection(db, "service"));
+
+        transaction.set(serviceRef, {
+          tanggal: Timestamp.fromDate(new Date(tanggal)),
+          pelangganId: p.id,
+          pelangganNama: p.nama,
+          kendaraanId: k.id,
+          kendaraanLabel: `${k.nomorPolisi} - ${k.merek}`,
+          keluhan,
+          mekanik,
+          kmSekarang: Number(kmSekarang || 0),
+          statusKendaraan,
+          jenisPembayaran,
+          sparepart,
+          biayaServis,
+          totalSparepart,
+          diskon,
+          totalBayar,
+          status: "MENUNGGU",
+          createdAt: Timestamp.now(),
+          estimasiId: selectedEstimasi || null,
+        });
+
+        /* =======================
+         3️⃣ UPDATE ESTIMASI (OPTIONAL)
+      ======================= */
+        if (selectedEstimasi) {
+          const estimasiRef = doc(db, "estimasi", selectedEstimasi);
+          transaction.update(estimasiRef, {
+            status: "SERVICE",
+            serviceId: serviceRef.id,
+          });
+        }
       });
 
-      if (selectedEstimasi) {
-        await updateDoc(doc(db, "estimasi", selectedEstimasi), {
-          status: "SERVICE",
-          serviceId: serviceRef.id,
-        });
-      }
+      alert("Service berhasil disimpan & stok terupdate");
 
-      alert("Service berhasil disimpan");
-
-      /* RESET FORM — TANPA RELOAD */
+      /* RESET FORM */
       setTanggal("");
       setKeluhan("");
       setBiayaServisInput("");
@@ -134,6 +188,8 @@ export default function ServicePage() {
       setSelectedPelanggan("");
       setSelectedKendaraan("");
       setSelectedEstimasi("");
+      setMekanik("");
+      setKmSekarang("");
       setFromEstimasi([]);
     } catch (err: any) {
       alert(err.message);
@@ -164,7 +220,7 @@ export default function ServicePage() {
           <div className="p-6 sm:p-8 space-y-8">
             {/* Load dari Estimasi */}
             {estimasiList.length > 0 && (
-              <div className="bg-blue-900/20 border border-blue-800 rounded-xl p-4">
+              <div className="bg-blue-900/20 border border-blue-700 rounded-xl p-5">
                 <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                   <svg
                     className="w-5 h-5 text-blue-500"
@@ -181,24 +237,22 @@ export default function ServicePage() {
                   </svg>
                   Load dari Estimasi (Opsional)
                 </h2>
-                <div className="flex gap-2">
-                  <select
-                    className="flex-1 bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    value={selectedEstimasi}
-                    onChange={(e) => {
-                      setSelectedEstimasi(e.target.value);
-                      if (e.target.value) loadEstimasi(e.target.value);
-                    }}
-                  >
-                    <option value="">-- Pilih Estimasi --</option>
-                    {estimasiList.map((est) => (
-                      <option key={est.id} value={est.id}>
-                        {est.pelangganNama} - {est.kendaraanLabel} (Rp{" "}
-                        {(est.totalBayar || 0).toLocaleString("id-ID")})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <select
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  value={selectedEstimasi}
+                  onChange={(e) => {
+                    setSelectedEstimasi(e.target.value);
+                    if (e.target.value) loadEstimasi(e.target.value);
+                  }}
+                >
+                  <option value="">-- Pilih Estimasi --</option>
+                  {estimasiList.map((est) => (
+                    <option key={est.id} value={est.id}>
+                      {est.pelangganNama} - {est.kendaraanLabel} (Rp{" "}
+                      {(est.totalBayar || 0).toLocaleString("id-ID")})
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
 
@@ -227,7 +281,7 @@ export default function ServicePage() {
                   </label>
                   <input
                     type="date"
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                     required
                     value={tanggal}
                     onChange={(e) => setTanggal(e.target.value)}
@@ -238,7 +292,7 @@ export default function ServicePage() {
                     Nama Mekanik
                   </label>
                   <input
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                     placeholder="Masukkan nama mekanik"
                     value={mekanik}
                     onChange={(e) => setMekanik(e.target.value)}
@@ -271,9 +325,10 @@ export default function ServicePage() {
                     Pelanggan
                   </label>
                   <select
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                     value={selectedPelanggan}
                     onChange={(e) => setSelectedPelanggan(e.target.value)}
+                    required
                   >
                     <option value="">Pilih Pelanggan</option>
                     {pelanggan.map((p) => (
@@ -288,9 +343,10 @@ export default function ServicePage() {
                     Kendaraan
                   </label>
                   <select
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                     value={selectedKendaraan}
                     onChange={(e) => setSelectedKendaraan(e.target.value)}
+                    required
                   >
                     <option value="">Pilih Kendaraan</option>
                     {kendaraan
@@ -331,7 +387,7 @@ export default function ServicePage() {
                     </label>
                     <input
                       type="number"
-                      className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                       placeholder="0"
                       min={0}
                       value={kmSekarang}
@@ -343,7 +399,7 @@ export default function ServicePage() {
                       Status Kendaraan
                     </label>
                     <select
-                      className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                       value={statusKendaraan}
                       onChange={(e) => setStatusKendaraan(e.target.value)}
                     >
@@ -357,7 +413,7 @@ export default function ServicePage() {
                       Jenis Pembayaran
                     </label>
                     <select
-                      className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                       value={jenisPembayaran}
                       onChange={(e) => setJenisPembayaran(e.target.value)}
                     >
@@ -372,7 +428,7 @@ export default function ServicePage() {
                     Keluhan
                   </label>
                   <textarea
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all min-h-[100px] resize-y"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all min-h-[100px] resize-y"
                     placeholder="Deskripsikan keluhan kendaraan..."
                     value={keluhan}
                     onChange={(e) => setKeluhan(e.target.value)}
@@ -406,7 +462,7 @@ export default function ServicePage() {
                   </label>
                   <input
                     type="number"
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                     value={biayaServisInput}
                     placeholder="0"
                     min={0}
@@ -419,6 +475,32 @@ export default function ServicePage() {
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Cari Sparepart
                   </label>
+
+                  {/* Tombol Suzuki */}
+                  <div className="mb-3">
+                    <a
+                      href="https://www.suzuki.co.id/eparts/ertiga-type-1-2-3/engine/figure/18503"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-4 py-2 rounded-lg font-medium transition-all shadow-md hover:shadow-lg"
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                        />
+                      </svg>
+                      Go to Suzuki E-Parts
+                    </a>
+                  </div>
+
                   <PartSearch onAdd={addPart} />
                 </div>
 
@@ -466,6 +548,25 @@ export default function ServicePage() {
                                     updateQty(sp.id, Number(e.target.value))
                                   }
                                 />
+                                <select
+                                  value={sp.unit}
+                                  onChange={(e) =>
+                                    updateUnit(
+                                      sp.id,
+                                      e.target.value as "PCS" | "PACK"
+                                    )
+                                  }
+                                  className="ml-2 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-white"
+                                >
+                                  <option value="PCS">PCS</option>
+
+                                  {/* PACK hanya muncul kalau sparepart punya pack */}
+                                  {sp.pack_size && (
+                                    <option value="PACK">
+                                      PACK ({sp.pack_size} PCS)
+                                    </option>
+                                  )}
+                                </select>
                               </td>
                               <td className="px-4 py-3 text-right font-semibold text-white">
                                 Rp {(sp.harga * sp.qty).toLocaleString("id-ID")}
@@ -507,7 +608,7 @@ export default function ServicePage() {
                   </label>
                   <input
                     type="number"
-                    className="input w-full bg-gray-800 border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                     value={diskonInput}
                     placeholder="0"
                     min={0}
@@ -521,7 +622,7 @@ export default function ServicePage() {
           {/* Summary & Submit */}
           <div className="bg-gray-800/50 border-t border-gray-800 px-6 sm:px-8 py-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-              <div className="space-y-1">
+              <div className="space-y-1 w-full sm:w-auto">
                 <div className="flex justify-between gap-8 text-sm">
                   <span className="text-gray-400">Biaya Jasa:</span>
                   <span className="text-white font-medium">
@@ -543,11 +644,11 @@ export default function ServicePage() {
                 <div className="flex justify-between gap-8 text-sm">
                   <span className="text-gray-400">Diskon:</span>
                   <span className="text-red-400 font-medium">
-                    - Rp {diskonInput}
+                    - Rp {diskon.toLocaleString("id-ID")}
                   </span>
                 </div>
               </div>
-              <div className="text-right">
+              <div className="text-right w-full sm:w-auto">
                 <p className="text-sm text-gray-400 mb-1">Total Pembayaran</p>
                 <p className="text-3xl font-bold text-white">
                   Rp {totalBayar.toLocaleString("id-ID")}
@@ -557,7 +658,7 @@ export default function ServicePage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-4 rounded-xl transition duration-400 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+              className="w-full bg-red-600 hover:bg-red-700 disabled:bg-red-800 text-white font-semibold py-4 rounded-xl shadow-lg hover:shadow-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg
                 className="w-5 h-5"
@@ -572,7 +673,7 @@ export default function ServicePage() {
                   d="M5 13l4 4L19 7"
                 />
               </svg>
-              Simpan Service
+              {loading ? "Menyimpan..." : "Simpan Service"}
             </button>
           </div>
         </form>

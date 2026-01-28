@@ -5,14 +5,16 @@ import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 
-
 /* ================= TYPE ================= */
 
 type HistorySparepart = {
-  id: string; // stok document id
+  id: string;
   nama: string;
   qty: number;
   harga: number;
+
+  unit?: "PCS" | "PACK";
+  pack_size?: number | null;
 };
 
 type History = {
@@ -36,12 +38,21 @@ export default function PendapatanPage() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-
   // filter
   const [searchSumber, setSearchSumber] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  
+
+  const toPcs = (
+    qty: number,
+    unit?: "PCS" | "PACK",
+    packSize?: number | null
+  ) => {
+    if (unit === "PACK" && packSize) {
+      return qty * packSize;
+    }
+    return qty;
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -79,8 +90,10 @@ export default function PendapatanPage() {
           }
 
           const row = resultMap.get(sp.id)!;
-          row.terpakai += Number(sp.qty || 0);
-          row.totalTerjual += Number(sp.qty || 0) * Number(sp.harga || 0);
+          const pcs = toPcs(sp.qty || 0, sp.unit, sp.pack_size);
+
+          row.terpakai += pcs;
+          row.totalTerjual += pcs * Number(sp.harga || 0);
         });
       });
 
@@ -115,15 +128,14 @@ export default function PendapatanPage() {
   return (
     <div className="min-h-screen bg-gray-950 text-white p-6 space-y-6">
       <div className="flex items-center gap-4">
-  <button
-    onClick={() => router.back()}
-    className="px-3 py-2 rounded-md bg-gray-800 hover:bg-gray-700 transition"
-  >
-    ← Kembali
-  </button>
-
-</div>
-<h1 className="text-2xl font-bold">Pendapatan Sparepart</h1>
+        <button
+          onClick={() => router.back()}
+          className="px-3 py-2 rounded-md bg-gray-800 hover:bg-gray-700 transition"
+        >
+          ← Kembali
+        </button>
+      </div>
+      <h1 className="text-2xl font-bold">Pendapatan Sparepart</h1>
 
       {/* ================= FILTER ================= */}
       <div className="grid md:grid-cols-4 gap-4">

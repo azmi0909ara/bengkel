@@ -8,6 +8,7 @@ type Stok = {
   id: string;
   nama: string;
   stok: number;
+  stok_base: number;
 };
 
 type Service = {
@@ -71,8 +72,8 @@ export default function Dashboard() {
   const totalService = service.length;
   const selesaiCount = service.filter((s) => s.status === "SELESAI").length;
   const menungguCount = service.filter((s) => s.status === "MENUNGGU").length;
-  const barangHabis = stok.filter((s) => s.stok === 0).length;
-  const barangTersedia = stok.filter((s) => s.stok > 0).length;
+  const barangHabis = stok.filter((s) => s.stok_base === 0).length;
+  const barangTersedia = stok.filter((s) => s.stok_base > 0).length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black p-6 text-white space-y-6">

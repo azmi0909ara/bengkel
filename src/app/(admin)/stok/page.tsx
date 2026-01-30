@@ -24,10 +24,13 @@ type Sparepart = {
   ngk_no: string;
   merk: string;
   kategori: string;
-  stok: number;
-  satuan: string;
-  pack_size?: number;
+
+  base_unit: "PCS" | "LITER";
+  stok_base: number;
+  pcs_per_pack?: number | null;
+  liter_per_pcs?: number | null;
   pack_label?: string;
+
   harga_beli: number;
   harga_jual: number;
   sumber: string;
@@ -124,7 +127,10 @@ export default function StokPage() {
   // ================= SUBMIT =================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    if (!form.satuan) {
+      alert("Satuan wajib dipilih");
+      return;
+    }
     const search_key = generateSearchKey(
       form.no_sparepart,
       form.nama_sparepart,
@@ -136,27 +142,76 @@ export default function StokPage() {
       : form.id_sparepart || generateIdSparepart();
 
     const newKode = editId ? form.kode_sparepart : getNextKodeSparepart(data);
-    const inputStok = Number(form.stok);
-    const packSize = Number(form.pack_size) || 1;
+    // const inputStok = Number(form.stok);
 
-    const isPack = form.pack_size && form.pack_label;
+    const satuan = form.satuan; // PCS | LITER
+    const packSize = Number(form.pack_size);
 
-    const stokFinal = isPack
-      ? Number(form.stok) * Number(form.pack_size)
-      : Number(form.stok);
+    const isPack = satuan === "PCS" && packSize > 1;
+
+    let stokFinal = 0;
+
+    if (satuan === "LITER") {
+      // oli curah → boleh decimal
+      stokFinal = Number(form.stok);
+    } else {
+      // PCS
+      stokFinal = isPack ? Number(form.stok) * packSize : Number(form.stok);
+    }
+
+    if (packSize > 1) {
+      if (!form.pack_label.trim()) {
+        alert("Label pack wajib diisi jika menggunakan pack");
+        return;
+      }
+
+      if (!Number.isInteger(Number(form.stok))) {
+        alert("Stok pack harus bilangan bulat");
+        return;
+      }
+    }
+
+    if (Number(form.stok) <= 0) {
+      alert("Stok harus lebih dari 0");
+      return;
+    }
+
+    // 🔴 LITER TIDAK BOLEH PACK
+    if (satuan === "LITER") {
+      if (packSize > 1 || form.pack_label.trim() !== "") {
+        alert("Barang satuan LITER tidak boleh menggunakan pack");
+        return;
+      }
+    }
+
+    // 🔴 PCS + PACK HARUS BULAT
+    if (satuan === "PCS" && isPack) {
+      if (!Number.isInteger(Number(form.stok))) {
+        alert("Stok pack harus bilangan bulat");
+        return;
+      }
+
+      if (!form.pack_label.trim()) {
+        alert("Label pack wajib diisi");
+        return;
+      }
+    }
+    const baseUnit = satuan === "LITER" ? "LITER" : "PCS";
 
     const payload = {
       id_sparepart: newIdSparepart,
       kode_sparepart: newKode,
       no_sparepart: form.no_sparepart,
       nama_sparepart: form.nama_sparepart,
-      ngk_no: form.ngk_no || "",
       merk: form.merk,
       kategori: form.kategori,
-      stok: stokFinal,
-      satuan: isPack ? "PCS" : form.satuan,
-      pack_size: isPack ? Number(form.pack_size) : null,
-      pack_label: isPack ? form.pack_label : null,
+
+      base_unit: baseUnit,
+      stok_base: stokFinal, // ← SELALU base unit
+      pcs_per_pack: baseUnit === "PCS" && packSize > 1 ? packSize : null,
+      pack_label: baseUnit === "PCS" && packSize > 1 ? form.pack_label : null,
+      liter_per_pcs: baseUnit === "LITER" ? null : null, // nanti kalau botol
+
       harga_beli: Number(form.harga_beli),
       harga_jual: Number(form.harga_jual),
       sumber: form.sumber || "",
@@ -195,18 +250,26 @@ export default function StokPage() {
 
   const handleEdit = (item: Sparepart) => {
     setEditId(item.id);
+
+    const stokForm =
+      item.base_unit === "PCS" && item.pcs_per_pack
+        ? Math.floor(item.stok_base / item.pcs_per_pack)
+        : item.stok_base;
+
     setForm({
       id_sparepart: item.id_sparepart,
       kode_sparepart: item.kode_sparepart,
       no_sparepart: item.no_sparepart,
       nama_sparepart: item.nama_sparepart,
-      ngk_no: item.ngk_no,
+      ngk_no: item.ngk_no || "",
       merk: item.merk,
       kategori: item.kategori,
-      stok: item.stok.toString(),
-      satuan: item.satuan,
-      pack_size: item.pack_size?.toString() || "",
-      pack_label: item.pack_label || "",
+
+      stok: stokForm.toString(),
+      satuan: item.base_unit,
+      pack_size: item.pcs_per_pack?.toString() || "",
+      pack_label: item.pcs_per_pack ? item.pack_label!.trim() || "PACK" : "",
+
       harga_beli: item.harga_beli.toString(),
       harga_jual: item.harga_jual.toString(),
       sumber: item.sumber,
@@ -256,16 +319,19 @@ export default function StokPage() {
           type="number"
           placeholder="Isi per pack (opsional)"
           className="input"
-          value={form.pack_size || ""}
+          disabled={form.satuan === "LITER"}
+          value={form.pack_size}
           onChange={(e) => setForm({ ...form, pack_size: e.target.value })}
         />
 
         <input
           placeholder="Label pack (BOTOL / PACK / DRUM)"
           className="input"
-          value={form.pack_label || ""}
+          disabled={form.satuan === "LITER"}
+          value={form.pack_label}
           onChange={(e) => setForm({ ...form, pack_label: e.target.value })}
         />
+
         <input
           placeholder="Nama Part"
           className="input"
@@ -307,12 +373,18 @@ export default function StokPage() {
           required
         />
 
-        <input
-          placeholder="Satuan (pcs / set)"
+        <select
           className="input"
           value={form.satuan}
           onChange={(e) => setForm({ ...form, satuan: e.target.value })}
-        />
+          required
+        >
+          <option value="" disabled>
+            Pilih satuan
+          </option>
+          <option value="PCS">PCS</option>
+          <option value="LITER">LITER</option>
+        </select>
 
         <input
           type="number"
@@ -424,18 +496,20 @@ export default function StokPage() {
                   </td>
                   <td className="px-4 py-3">{item.kategori}</td>
                   <td className="px-4 py-3 text-center">
-                    {item.pack_size ? (
+                    {item.base_unit === "PCS" &&
+                    item.pcs_per_pack &&
+                    item.pcs_per_pack > 1 ? (
                       <>
-                        {Math.floor(item.stok / item.pack_size)}{" "}
+                        {Math.floor(item.stok_base / item.pcs_per_pack)}{" "}
                         {item.pack_label}
                         <div className="text-xs text-gray-400">
-                          ≈ {item.stok} PCS
+                          = {item.stok_base} PCS
                         </div>
                       </>
+                    ) : item.base_unit === "PCS" ? (
+                      <>{item.stok_base} PCS</>
                     ) : (
-                      <>
-                        {item.stok} {item.satuan}
-                      </>
+                      <>{item.stok_base} LITER</>
                     )}
                   </td>
 
@@ -510,9 +584,22 @@ export default function StokPage() {
                   <tr>
                     <td className="border p-2 font-semibold">Stok</td>
                     <td className="border p-2">
-                      {detail.stok} {detail.satuan}
+                      {detail.base_unit === "PCS" && detail.pcs_per_pack ? (
+                        <>
+                          {Math.floor(detail.stok_base / detail.pcs_per_pack)}{" "}
+                          PACK
+                          <div className="text-xs text-gray-400">
+                            = {detail.stok_base} PCS
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {detail.stok_base} {detail.base_unit}
+                        </>
+                      )}
                     </td>
                   </tr>
+
                   <tr>
                     <td className="border p-2 font-semibold">Harga Beli</td>
                     <td className="border p-2">

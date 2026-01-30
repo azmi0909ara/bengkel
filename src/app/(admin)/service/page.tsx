@@ -13,20 +13,12 @@ import PartSearch, { EPart } from "@/components/service/PartSearch";
 import { useSparepart } from "@/hooks/useSparepart";
 import { calculateTotal } from "@/lib/calculation";
 import { Estimasi, Kendaraan, Pelanggan } from "@/types/service";
+import { convertToBaseUnit } from "@/lib/stokConverter";
 
 /* ================= CONST ================= */
 const JENIS_PEMBAYARAN = ["Tunai", "Transfer", "QRIS"];
 const STATUS_KENDARAAN = ["DITUNGGU", "DITINGGAL"];
 
-function toPcs(qty: number, unit: "PCS" | "PACK", packSize?: number | null) {
-  if (unit === "PACK") {
-    if (!packSize) {
-      throw new Error("Sparepart ini tidak memiliki pack");
-    }
-    return qty * packSize;
-  }
-  return qty;
-}
 /* ================= PAGE ================= */
 export default function ServicePage() {
   const {
@@ -95,6 +87,10 @@ export default function ServicePage() {
     diskon
   );
 
+  function normalizeUnit(item: any) {
+    return item.unit;
+  }
+
   /* ================= SUBMIT ================= */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,39 +107,72 @@ export default function ServicePage() {
     try {
       await runTransaction(db, async (transaction) => {
         /* =======================
-         1️⃣ VALIDASI & KURANGI STOK
-      ======================= */
+   1️⃣ SEMUA READ DULU
+  ======================= */
+        const stokSnapshots = new Map<string, any>();
+
         for (const item of sparepart) {
           const stokRef = doc(db, "stok", item.id);
+          const snap = await transaction.get(stokRef);
 
-          const stokSnap = await transaction.get(stokRef);
-          if (!stokSnap.exists()) {
+          if (!snap.exists()) {
             throw new Error(`Stok ${item.nama} tidak ditemukan`);
           }
 
-          const stokData = stokSnap.data();
-          const stokSaatIni = stokData.stok;
-
-          // 🔥 KONVERSI KE PCS
-          const qtyPcs = toPcs(
-            item.qty,
-            item.unit ?? "PCS",
-            stokData.pack_size
-          );
-
-          if (stokSaatIni < qtyPcs) {
-            throw new Error(`Stok ${item.nama} tidak cukup`);
-          }
-
-          transaction.update(stokRef, {
-            stok: stokSaatIni - qtyPcs,
+          const data = snap.data();
+          stokSnapshots.set(item.id, {
+            ref: stokRef,
+            data,
+            item,
           });
         }
 
         /* =======================
-         2️⃣ SIMPAN SERVICE
-      ======================= */
+   2️⃣ VALIDASI & WRITE
+  ======================= */
+        for (const [, { ref, data, item }] of stokSnapshots) {
+          const stokSaatIni = data.stok_base;
+
+          const usedBase = convertToBaseUnit({
+            qty: item.qty,
+            unit: item.unit, // PCS / PACK / LITER
+            baseUnit: data.base_unit,
+            literPerPcs: data.liter_per_pcs ?? null,
+            pcsPerPack: data.pcs_per_pack ?? data.pack_size ?? null, // ⬅️ penting
+          });
+
+          if (stokSaatIni < usedBase) {
+            throw new Error(`Stok ${data.nama_sparepart} tidak cukup`);
+          }
+
+          transaction.update(ref, {
+            stok_base: stokSaatIni - usedBase,
+          });
+        }
+
+        /* =======================
+   3️⃣ SIMPAN SERVICE
+  ======================= */
         const serviceRef = doc(collection(db, "service"));
+
+        const sparepartWithDetail = sparepart.map((item) => {
+          const stokData = stokSnapshots.get(item.id)?.data;
+          const usedBase = convertToBaseUnit({
+            qty: item.qty,
+            unit: item.unit,
+            baseUnit: stokData.base_unit,
+            literPerPcs: stokData.liter_per_pcs ?? null,
+            pcsPerPack: stokData.pcs_per_pack ?? stokData.pack_size ?? null,
+          });
+
+          return {
+            ...item,
+            qty_display: item.qty, // qty yang diinput user
+            unit_display: item.unit, // unit yang dipilih user (PACK/LITER/PCS)
+            qty_base: usedBase, // qty dalam base unit
+            unit_base: stokData.base_unit, // PCS atau LITER
+          };
+        });
 
         transaction.set(serviceRef, {
           tanggal: Timestamp.fromDate(new Date(tanggal)),
@@ -156,7 +185,7 @@ export default function ServicePage() {
           kmSekarang: Number(kmSekarang || 0),
           statusKendaraan,
           jenisPembayaran,
-          sparepart,
+          sparepart: sparepartWithDetail,
           biayaServis,
           totalSparepart,
           diskon,
@@ -167,11 +196,10 @@ export default function ServicePage() {
         });
 
         /* =======================
-         3️⃣ UPDATE ESTIMASI (OPTIONAL)
-      ======================= */
+   4️⃣ UPDATE ESTIMASI
+  ======================= */
         if (selectedEstimasi) {
-          const estimasiRef = doc(db, "estimasi", selectedEstimasi);
-          transaction.update(estimasiRef, {
+          transaction.update(doc(db, "estimasi", selectedEstimasi), {
             status: "SERVICE",
             serviceId: serviceRef.id,
           });
@@ -553,18 +581,34 @@ export default function ServicePage() {
                                   onChange={(e) =>
                                     updateUnit(
                                       sp.id,
-                                      e.target.value as "PCS" | "PACK"
+                                      e.target.value as "PCS" | "PACK" | "LITER"
                                     )
                                   }
                                   className="ml-2 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-white"
                                 >
-                                  <option value="PCS">PCS</option>
+                                  {/* BASE UNIT PCS */}
+                                  {sp.baseUnit === "PCS" && (
+                                    <>
+                                      <option value="PCS">PCS</option>
 
-                                  {/* PACK hanya muncul kalau sparepart punya pack */}
-                                  {sp.pack_size && (
-                                    <option value="PACK">
-                                      PACK ({sp.pack_size} PCS)
-                                    </option>
+                                      {sp.pack_size && (
+                                        <option value="PACK">
+                                          PACK ({sp.pack_size} PCS)
+                                        </option>
+                                      )}
+                                    </>
+                                  )}
+
+                                  {/* BASE UNIT LITER */}
+                                  {sp.baseUnit === "LITER" && (
+                                    <>
+                                      <option value="LITER">LITER</option>
+
+                                      {/* BOTOL → PCS hanya boleh kalau ada liter_per_pcs */}
+                                      {sp.liter_per_pcs && (
+                                        <option value="PCS">BOTOL</option>
+                                      )}
+                                    </>
                                   )}
                                 </select>
                               </td>

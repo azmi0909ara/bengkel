@@ -520,18 +520,33 @@ export default function EstimasiPage() {
                                   onChange={(e) =>
                                     updateUnit(
                                       sp.id,
-                                      e.target.value as "PCS" | "PACK"
+                                      e.target.value as "PCS" | "PACK" | "LITER"
                                     )
                                   }
                                   className="ml-2 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-white"
                                 >
-                                  <option value="PCS">PCS</option>
+                                  {/* BASE UNIT PCS */}
+                                  {sp.baseUnit === "PCS" && (
+                                    <>
+                                      <option value="PCS">PCS</option>
+                                      {sp.pack_size && (
+                                        <option value="PACK">
+                                          PACK ({sp.pack_size} PCS)
+                                        </option>
+                                      )}
+                                    </>
+                                  )}
 
-                                  {/* PACK hanya muncul kalau sparepart punya pack */}
-                                  {sp.pack_size && (
-                                    <option value="PACK">
-                                      PACK ({sp.pack_size} PCS)
-                                    </option>
+                                  {/* BASE UNIT LITER */}
+                                  {sp.baseUnit === "LITER" && (
+                                    <>
+                                      <option value="LITER">LITER</option>
+                                      {sp.liter_per_pcs && (
+                                        <option value="PCS">
+                                          BOTOL ({sp.liter_per_pcs}L)
+                                        </option>
+                                      )}
+                                    </>
                                   )}
                                 </select>
                               </td>

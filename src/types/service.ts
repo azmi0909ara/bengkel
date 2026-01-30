@@ -1,3 +1,7 @@
+export type UnitType = "PCS" | "PACK" | "LITER";
+
+export type Unit = "PCS" | "PACK" | "LITER";
+
 export type Pelanggan = {
   id: string;
   nama: string;
@@ -10,13 +14,18 @@ export type Kendaraan = {
   merek: string;
 };
 
+// types/service.ts
 export type SparepartDipakai = {
   id: string;
   nama: string;
   harga: number;
   qty: number;
-  unit: "PCS" | "PACK";
-  pack_size?: number | null;
+  unit: "PCS" | "PACK" | "LITER";
+
+  // ✅ METADATA DARI DATABASE
+  baseUnit: "PCS" | "LITER";
+  pack_size?: number | null; // ← WAJIB
+  liter_per_pcs?: number | null; // ← WAJIB
 };
 
 export type Estimasi = {

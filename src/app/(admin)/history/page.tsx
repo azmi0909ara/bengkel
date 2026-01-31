@@ -14,7 +14,7 @@ type History = {
   pelangganNama: string;
   kendaraanId: string;
   kendaraanLabel: string;
-  mekanikNama: string;
+  mekanik: string;
   kmSekarang: number;
   keluhan: string;
   statusKendaraan: string;
@@ -159,7 +159,7 @@ export default function HistoryPage() {
                 </tr>
                 <tr>
                   <td className="p-2 bg-gray-800">Mekanik</td>
-                  <td className="p-2">{detail.mekanikNama}</td>
+                  <td className="p-2">{detail.mekanik}</td>
                 </tr>
                 <tr>
                   <td className="p-2 bg-gray-800">KM Sekarang</td>

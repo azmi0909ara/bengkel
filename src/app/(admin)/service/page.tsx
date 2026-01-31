@@ -11,9 +11,12 @@ import {
 import { db } from "@/lib/firebase";
 import PartSearch, { EPart } from "@/components/service/PartSearch";
 import { useSparepart } from "@/hooks/useSparepart";
-import { calculateTotal } from "@/lib/calculation";
 import { Estimasi, Kendaraan, Pelanggan } from "@/types/service";
-import { convertToBaseUnit } from "@/lib/stokConverter";
+import {
+  calculateSubtotal,
+  calculateTotal,
+  convertToBaseUnit,
+} from "@/lib/calculationUtils";
 
 /* ================= CONST ================= */
 const JENIS_PEMBAYARAN = ["Tunai", "Transfer", "QRIS"];
@@ -76,7 +79,6 @@ export default function ServicePage() {
     setDiskonInput(String(est.diskon || 0));
     setFromEstimasi(est.sparepart);
   };
-  /* ================= ADD PART ================= */
 
   const biayaServis = Number(biayaServisInput) || 0;
   const diskon = Number(diskonInput) || 0;
@@ -86,10 +88,6 @@ export default function ServicePage() {
     biayaServis,
     diskon
   );
-
-  function normalizeUnit(item: any) {
-    return item.unit;
-  }
 
   /* ================= SUBMIT ================= */
   const handleSubmit = async (e: React.FormEvent) => {
@@ -138,7 +136,7 @@ export default function ServicePage() {
             unit: item.unit, // PCS / PACK / LITER
             baseUnit: data.base_unit,
             literPerPcs: data.liter_per_pcs ?? null,
-            pcsPerPack: data.pcs_per_pack ?? data.pack_size ?? null, // ⬅️ penting
+            pcsPerPack: data.pcs_per_pack ?? null,
           });
 
           if (stokSaatIni < usedBase) {
@@ -162,7 +160,7 @@ export default function ServicePage() {
             unit: item.unit,
             baseUnit: stokData.base_unit,
             literPerPcs: stokData.liter_per_pcs ?? null,
-            pcsPerPack: stokData.pcs_per_pack ?? stokData.pack_size ?? null,
+            pcsPerPack: stokData.pcs_per_pack ?? null,
           });
 
           return {
@@ -274,12 +272,14 @@ export default function ServicePage() {
                   }}
                 >
                   <option value="">-- Pilih Estimasi --</option>
-                  {estimasiList.map((est) => (
-                    <option key={est.id} value={est.id}>
-                      {est.pelangganNama} - {est.kendaraanLabel} (Rp{" "}
-                      {(est.totalBayar || 0).toLocaleString("id-ID")})
-                    </option>
-                  ))}
+                  {estimasiList
+                    .filter((est) => est.status === "ESTIMASI")
+                    .map((est) => (
+                      <option key={est.id} value={est.id}>
+                        {est.pelangganNama} - {est.kendaraanLabel} (Rp{" "}
+                        {(est.totalBayar || 0).toLocaleString("id-ID")})
+                      </option>
+                    ))}
                 </select>
               </div>
             )}
@@ -546,7 +546,7 @@ export default function ServicePage() {
                               Harga
                             </th>
                             <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
-                              Qty
+                              Qty & Unit
                             </th>
                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">
                               Subtotal
@@ -567,53 +567,62 @@ export default function ServicePage() {
                                 Rp {sp.harga.toLocaleString("id-ID")}
                               </td>
                               <td className="px-4 py-3 text-center">
-                                <input
-                                  type="number"
-                                  className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-center text-white focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                                  value={sp.qty}
-                                  min={1}
-                                  onChange={(e) =>
-                                    updateQty(sp.id, Number(e.target.value))
-                                  }
-                                />
-                                <select
-                                  value={sp.unit}
-                                  onChange={(e) =>
-                                    updateUnit(
-                                      sp.id,
-                                      e.target.value as "PCS" | "PACK" | "LITER"
-                                    )
-                                  }
-                                  className="ml-2 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-white"
-                                >
-                                  {/* BASE UNIT PCS */}
-                                  {sp.baseUnit === "PCS" && (
-                                    <>
-                                      <option value="PCS">PCS</option>
+                                <div className="flex items-center justify-center gap-2">
+                                  <input
+                                    type="number"
+                                    step={sp.unit === "LITER" ? "0.1" : "1"}
+                                    className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-center text-white focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                    value={sp.qty}
+                                    min={sp.unit === "LITER" ? 0.1 : 1}
+                                    onChange={(e) =>
+                                      updateQty(sp.id, Number(e.target.value))
+                                    }
+                                  />
+                                  <select
+                                    value={sp.unit}
+                                    onChange={(e) =>
+                                      updateUnit(
+                                        sp.id,
+                                        e.target.value as
+                                          | "PCS"
+                                          | "PACK"
+                                          | "LITER"
+                                      )
+                                    }
+                                    className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-white text-xs"
+                                  >
+                                    {/* BASE UNIT PCS */}
+                                    {sp.baseUnit === "PCS" && (
+                                      <>
+                                        <option value="PCS">PCS</option>
 
-                                      {sp.pack_size && (
-                                        <option value="PACK">
-                                          PACK ({sp.pack_size} PCS)
-                                        </option>
-                                      )}
-                                    </>
-                                  )}
+                                        {/* 🔧 DIPERBAIKI: pack_size → pcs_per_pack */}
+                                        {sp.pcs_per_pack && (
+                                          <option value="PACK">
+                                            {sp.pack_label || "PACK"} (
+                                            {sp.pcs_per_pack} PCS)
+                                          </option>
+                                        )}
 
-                                  {/* BASE UNIT LITER */}
-                                  {sp.baseUnit === "LITER" && (
-                                    <>
+                                        {/* 🆕 TAMBAHAN: Oli botol */}
+                                        {sp.liter_per_pcs && (
+                                          <option value="BOTOL">
+                                            BOTOL ({sp.liter_per_pcs}L)
+                                          </option>
+                                        )}
+                                      </>
+                                    )}
+
+                                    {/* BASE UNIT LITER */}
+                                    {sp.baseUnit === "LITER" && (
                                       <option value="LITER">LITER</option>
-
-                                      {/* BOTOL → PCS hanya boleh kalau ada liter_per_pcs */}
-                                      {sp.liter_per_pcs && (
-                                        <option value="PCS">BOTOL</option>
-                                      )}
-                                    </>
-                                  )}
-                                </select>
+                                    )}
+                                  </select>
+                                </div>
                               </td>
                               <td className="px-4 py-3 text-right font-semibold text-white">
-                                Rp {(sp.harga * sp.qty).toLocaleString("id-ID")}
+                                Rp{" "}
+                                {calculateSubtotal(sp).toLocaleString("id-ID")}
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <button

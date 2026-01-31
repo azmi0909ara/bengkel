@@ -16,7 +16,7 @@ export function useSparepart() {
         );
       }
 
-      // ✅ SIMPAN SEMUA DATA PENTING
+      // ✅ SIMPAN SEMUA DATA PENTING DENGAN FIELD KONSISTEN
       return [
         ...prev,
         {
@@ -24,9 +24,10 @@ export function useSparepart() {
           nama: `${part.no_part} - ${part.nama}`,
           harga: part.harga,
           qty: 1,
-          unit: part.base_unit, // ✅ DARI DATABASE
+          unit: part.base_unit as "PCS" | "LITER", // ✅ DARI DATABASE
           baseUnit: part.base_unit, // ✅ DARI DATABASE
-          pack_size: part.pcs_per_pack ?? null, // ✅ DARI DATABASE
+          pcs_per_pack: part.pcs_per_pack ?? null, // ✅ KONSISTEN
+          pack_label: part.pack_label ?? null, // ✅ KONSISTEN
           liter_per_pcs: part.liter_per_pcs ?? null, // ✅ DARI DATABASE
         },
       ];
@@ -39,33 +40,20 @@ export function useSparepart() {
     );
   };
 
-  const updateUnit = (id: string, newUnit: "PCS" | "PACK" | "LITER") => {
+  const updateUnit = (
+    id: string,
+    newUnit: "PCS" | "PACK" | "LITER" | "BOTOL"
+  ) => {
     setSparepart((prev) =>
       prev.map((item) => {
         if (item.id !== id) return item;
 
-        let hargaDisplay = item.harga; // harga base (per PCS atau per LITER)
-
-        // 🎯 KALKULASI HARGA BERDASARKAN UNIT
-        if (newUnit === "PACK" && item.pack_size) {
-          // Harga PACK = harga PCS × jumlah isi pack
-          hargaDisplay = item.harga * item.pack_size;
-        } else if (
-          newUnit === "PCS" &&
-          item.baseUnit === "LITER" &&
-          item.liter_per_pcs
-        ) {
-          // Harga BOTOL = harga LITER × isi per botol
-          hargaDisplay = item.harga * item.liter_per_pcs;
-        } else {
-          // Default: gunakan harga base
-          hargaDisplay = item.harga;
-        }
+        // Harga base sudah tersimpan di item.harga
+        // Tidak perlu kalkulasi ulang karena subtotal di-handle oleh calculateSubtotal
 
         return {
           ...item,
           unit: newUnit,
-          harga_display: hargaDisplay,
         };
       })
     );
@@ -80,7 +68,8 @@ export function useSparepart() {
       (items || []).map((i) => ({
         ...i,
         unit: i.unit ?? i.baseUnit, // ✅ Fallback ke baseUnit
-        pack_size: i.pack_size ?? null,
+        pcs_per_pack: i.pcs_per_pack ?? null, // ✅ KONSISTEN
+        pack_label: i.pack_label ?? null, // ✅ KONSISTEN
         liter_per_pcs: i.liter_per_pcs ?? null,
       }))
     );

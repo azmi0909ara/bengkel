@@ -1,6 +1,6 @@
-export type UnitType = "PCS" | "PACK" | "LITER";
+export type UnitType = "PCS" | "PACK" | "LITER" | "BOTOL";
 
-export type Unit = "PCS" | "PACK" | "LITER";
+export type Unit = "PCS" | "PACK" | "LITER" | "BOTOL";
 
 export type Pelanggan = {
   id: string;
@@ -20,12 +20,13 @@ export type SparepartDipakai = {
   nama: string;
   harga: number;
   qty: number;
-  unit: "PCS" | "PACK" | "LITER";
+  unit: "PCS" | "PACK" | "LITER" | "BOTOL";
 
-  // ✅ METADATA DARI DATABASE
+  // ✅ METADATA DARI DATABASE (KONSISTEN DENGAN STOK)
   baseUnit: "PCS" | "LITER";
-  pack_size?: number | null; // ← WAJIB
-  liter_per_pcs?: number | null; // ← WAJIB
+  pcs_per_pack?: number | null; // ← untuk PACK
+  pack_label?: string | null; // ← label PACK (BOX/KARTON/DUS)
+  liter_per_pcs?: number | null; // ← untuk BOTOL
 };
 
 export type Estimasi = {

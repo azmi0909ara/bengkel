@@ -12,9 +12,9 @@ import {
 import { db } from "@/lib/firebase";
 import PartSearch, { EPart } from "@/components/service/PartSearch";
 import { useSparepart } from "@/hooks/useSparepart";
-import { calculateTotal } from "@/lib/calculation";
 import { Estimasi, Kendaraan, Pelanggan } from "@/types/service";
 import EstimasiPrint from "../transaksi/components/EstimasiPrint";
+import { calculateSubtotal, calculateTotal } from "@/lib/calculationUtils";
 
 /* ================= CONST ================= */
 const JENIS_PEMBAYARAN = ["Tunai", "Transfer", "QRIS"];
@@ -444,31 +444,32 @@ export default function EstimasiPage() {
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Cari Sparepart
                   </label>
-                  <PartSearch onAdd={addPart} />
-                </div>
 
-                <div className="mb-3">
-                  <a
-                    href="https://www.suzuki.co.id/eparts/ertiga-type-1-2-3/engine/figure/18503"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-4 py-2 rounded-lg font-medium transition-all shadow-md hover:shadow-lg"
-                  >
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                  <div className="mb-3">
+                    <a
+                      href="https://www.suzuki.co.id/eparts/ertiga-type-1-2-3/engine/figure/18503"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-4 py-2 rounded-lg font-medium transition-all shadow-md hover:shadow-lg"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                      />
-                    </svg>
-                    Go to Suzuki E-Parts
-                  </a>
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                        />
+                      </svg>
+                      Go to Suzuki E-Parts
+                    </a>
+                  </div>
+
+                  <PartSearch onAdd={addPart} />
                 </div>
 
                 {/* Tabel Sparepart */}
@@ -485,7 +486,7 @@ export default function EstimasiPage() {
                               Harga
                             </th>
                             <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
-                              Qty
+                              Qty & Unit
                             </th>
                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">
                               Subtotal
@@ -506,52 +507,62 @@ export default function EstimasiPage() {
                                 Rp {sp.harga.toLocaleString("id-ID")}
                               </td>
                               <td className="px-4 py-3 text-center">
-                                <input
-                                  type="number"
-                                  className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-center text-white focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                                  value={sp.qty}
-                                  min={1}
-                                  onChange={(e) =>
-                                    updateQty(sp.id, Number(e.target.value))
-                                  }
-                                />
-                                <select
-                                  value={sp.unit}
-                                  onChange={(e) =>
-                                    updateUnit(
-                                      sp.id,
-                                      e.target.value as "PCS" | "PACK" | "LITER"
-                                    )
-                                  }
-                                  className="ml-2 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-white"
-                                >
-                                  {/* BASE UNIT PCS */}
-                                  {sp.baseUnit === "PCS" && (
-                                    <>
-                                      <option value="PCS">PCS</option>
-                                      {sp.pack_size && (
-                                        <option value="PACK">
-                                          PACK ({sp.pack_size} PCS)
-                                        </option>
-                                      )}
-                                    </>
-                                  )}
+                                <div className="flex items-center justify-center gap-2">
+                                  <input
+                                    type="number"
+                                    step={sp.unit === "LITER" ? "0.1" : "1"}
+                                    className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-center text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    value={sp.qty}
+                                    min={sp.unit === "LITER" ? 0.1 : 1}
+                                    onChange={(e) =>
+                                      updateQty(sp.id, Number(e.target.value))
+                                    }
+                                  />
+                                  <select
+                                    value={sp.unit}
+                                    onChange={(e) =>
+                                      updateUnit(
+                                        sp.id,
+                                        e.target.value as
+                                          | "PCS"
+                                          | "PACK"
+                                          | "LITER"
+                                      )
+                                    }
+                                    className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-white text-xs"
+                                  >
+                                    {/* BASE UNIT PCS */}
+                                    {sp.baseUnit === "PCS" && (
+                                      <>
+                                        <option value="PCS">PCS</option>
 
-                                  {/* BASE UNIT LITER */}
-                                  {sp.baseUnit === "LITER" && (
-                                    <>
+                                        {/* 🔧 DIPERBAIKI: pack_size → pcs_per_pack */}
+                                        {sp.pcs_per_pack && (
+                                          <option value="PACK">
+                                            {sp.pack_label || "PACK"} (
+                                            {sp.pcs_per_pack} PCS)
+                                          </option>
+                                        )}
+
+                                        {/* 🆕 TAMBAHAN: Oli botol */}
+                                        {sp.liter_per_pcs && (
+                                          <option value="BOTOL">
+                                            BOTOL ({sp.liter_per_pcs}L)
+                                          </option>
+                                        )}
+                                      </>
+                                    )}
+
+                                    {/* BASE UNIT LITER */}
+                                    {sp.baseUnit === "LITER" && (
                                       <option value="LITER">LITER</option>
-                                      {sp.liter_per_pcs && (
-                                        <option value="PCS">
-                                          BOTOL ({sp.liter_per_pcs}L)
-                                        </option>
-                                      )}
-                                    </>
-                                  )}
-                                </select>
+                                    )}
+                                  </select>
+                                </div>
                               </td>
                               <td className="px-4 py-3 text-right font-semibold text-white">
-                                Rp {(sp.harga * sp.qty).toLocaleString("id-ID")}
+                                Rp{" "}
+                                {calculateSubtotal(sp).toLocaleString("id-ID")}
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <button

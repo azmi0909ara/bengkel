@@ -8,7 +8,6 @@ import {
   updateDoc,
   deleteDoc,
   doc,
-  Timestamp,
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -69,6 +68,7 @@ export default function StokPage() {
     satuan: "",
     pack_size: "",
     pack_label: "",
+    liter_per_pcs: "",
     harga_beli: "",
     harga_jual: "",
     sumber: "",
@@ -127,10 +127,63 @@ export default function StokPage() {
   // ================= SUBMIT =================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!form.satuan) {
       alert("Satuan wajib dipilih");
       return;
     }
+
+    if (Number(form.stok) <= 0) {
+      alert("Stok harus lebih dari 0");
+      return;
+    }
+
+    const satuan = form.satuan;
+    const packSize = Number(form.pack_size) || 0;
+    const literPerPcs = Number(form.liter_per_pcs) || 0;
+
+    // ===== VALIDASI LITER CURAH =====
+    if (satuan === "LITER") {
+      if (packSize > 0 || form.pack_label.trim() !== "") {
+        alert("Oli curah (satuan LITER) tidak boleh menggunakan pack");
+        return;
+      }
+      if (literPerPcs > 0) {
+        alert("Oli curah (satuan LITER) tidak perlu isi 'Liter per Botol'");
+        return;
+      }
+    }
+
+    // ===== VALIDASI PACK (untuk busi, sekring, dll) =====
+    if (satuan === "PCS" && packSize > 1) {
+      if (!form.pack_label.trim()) {
+        alert("Label pack wajib diisi (BOX/PACK/KARTON/DUS)");
+        return;
+      }
+      if (!Number.isInteger(Number(form.stok))) {
+        alert("Stok pack harus bilangan bulat (tidak boleh desimal)");
+        return;
+      }
+      if (literPerPcs > 0) {
+        alert(
+          "Barang per pack tidak bisa sekaligus memiliki 'Liter per Botol'"
+        );
+        return;
+      }
+    }
+
+    // ===== VALIDASI OLI BOTOL/DRUM (PCS + liter_per_pcs) =====
+    if (satuan === "PCS" && literPerPcs > 0) {
+      if (packSize > 1) {
+        alert("Oli botol/drum tidak boleh menggunakan pack");
+        return;
+      }
+      if (!Number.isInteger(Number(form.stok))) {
+        alert("Stok botol/drum harus bilangan bulat");
+        return;
+      }
+    }
+
     const search_key = generateSearchKey(
       form.no_sparepart,
       form.nama_sparepart,
@@ -142,75 +195,41 @@ export default function StokPage() {
       : form.id_sparepart || generateIdSparepart();
 
     const newKode = editId ? form.kode_sparepart : getNextKodeSparepart(data);
-    // const inputStok = Number(form.stok);
 
-    const satuan = form.satuan; // PCS | LITER
-    const packSize = Number(form.pack_size);
-
-    const isPack = satuan === "PCS" && packSize > 1;
-
+    // ===== HITUNG STOK BASE =====
     let stokFinal = 0;
 
     if (satuan === "LITER") {
-      // oli curah → boleh decimal
+      // Oli curah → langsung dalam liter (boleh desimal)
       stokFinal = Number(form.stok);
+    } else if (packSize > 1) {
+      // PCS dengan pack → konversi ke base PCS
+      stokFinal = Number(form.stok) * packSize;
     } else {
-      // PCS
-      stokFinal = isPack ? Number(form.stok) * packSize : Number(form.stok);
+      // PCS biasa atau oli botol → langsung
+      stokFinal = Number(form.stok);
     }
 
-    if (packSize > 1) {
-      if (!form.pack_label.trim()) {
-        alert("Label pack wajib diisi jika menggunakan pack");
-        return;
-      }
-
-      if (!Number.isInteger(Number(form.stok))) {
-        alert("Stok pack harus bilangan bulat");
-        return;
-      }
-    }
-
-    if (Number(form.stok) <= 0) {
-      alert("Stok harus lebih dari 0");
-      return;
-    }
-
-    // 🔴 LITER TIDAK BOLEH PACK
-    if (satuan === "LITER") {
-      if (packSize > 1 || form.pack_label.trim() !== "") {
-        alert("Barang satuan LITER tidak boleh menggunakan pack");
-        return;
-      }
-    }
-
-    // 🔴 PCS + PACK HARUS BULAT
-    if (satuan === "PCS" && isPack) {
-      if (!Number.isInteger(Number(form.stok))) {
-        alert("Stok pack harus bilangan bulat");
-        return;
-      }
-
-      if (!form.pack_label.trim()) {
-        alert("Label pack wajib diisi");
-        return;
-      }
-    }
-    const baseUnit = satuan === "LITER" ? "LITER" : "PCS";
-
+    // ===== PAYLOAD =====
     const payload = {
       id_sparepart: newIdSparepart,
       kode_sparepart: newKode,
       no_sparepart: form.no_sparepart,
       nama_sparepart: form.nama_sparepart,
+      ngk_no: form.ngk_no || "",
       merk: form.merk,
       kategori: form.kategori,
 
-      base_unit: baseUnit,
-      stok_base: stokFinal, // ← SELALU base unit
-      pcs_per_pack: baseUnit === "PCS" && packSize > 1 ? packSize : null,
-      pack_label: baseUnit === "PCS" && packSize > 1 ? form.pack_label : null,
-      liter_per_pcs: baseUnit === "LITER" ? null : null, // nanti kalau botol
+      base_unit: satuan as "PCS" | "LITER",
+      stok_base: stokFinal,
+
+      // Pack info (untuk busi, sekring, dll)
+      pcs_per_pack: satuan === "PCS" && packSize > 1 ? packSize : null,
+      pack_label:
+        satuan === "PCS" && packSize > 1 ? form.pack_label.trim() : null,
+
+      // Liter info (untuk oli botol/drum)
+      liter_per_pcs: satuan === "PCS" && literPerPcs > 0 ? literPerPcs : null,
 
       harga_beli: Number(form.harga_beli),
       harga_jual: Number(form.harga_jual),
@@ -228,18 +247,20 @@ export default function StokPage() {
       });
     }
 
+    // Reset form
     setForm({
-      id_sparepart: generateIdSparepart(),
-      kode_sparepart: getNextKodeSparepart(data),
+      id_sparepart: "",
+      kode_sparepart: "",
       no_sparepart: "",
       nama_sparepart: "",
       ngk_no: "",
       merk: "",
       kategori: "",
       stok: "",
+      satuan: "",
       pack_size: "",
       pack_label: "",
-      satuan: "",
+      liter_per_pcs: "",
       harga_beli: "",
       harga_jual: "",
       sumber: "",
@@ -251,10 +272,17 @@ export default function StokPage() {
   const handleEdit = (item: Sparepart) => {
     setEditId(item.id);
 
-    const stokForm =
-      item.base_unit === "PCS" && item.pcs_per_pack
-        ? Math.floor(item.stok_base / item.pcs_per_pack)
-        : item.stok_base;
+    // Hitung stok untuk form (kebalikan dari submit)
+    let stokForm = item.stok_base;
+
+    if (
+      item.base_unit === "PCS" &&
+      item.pcs_per_pack &&
+      item.pcs_per_pack > 1
+    ) {
+      // Jika pack, tampilkan dalam satuan pack
+      stokForm = Math.floor(item.stok_base / item.pcs_per_pack);
+    }
 
     setForm({
       id_sparepart: item.id_sparepart,
@@ -264,12 +292,11 @@ export default function StokPage() {
       ngk_no: item.ngk_no || "",
       merk: item.merk,
       kategori: item.kategori,
-
       stok: stokForm.toString(),
       satuan: item.base_unit,
       pack_size: item.pcs_per_pack?.toString() || "",
-      pack_label: item.pcs_per_pack ? item.pack_label!.trim() || "PACK" : "",
-
+      pack_label: item.pack_label || "",
+      liter_per_pcs: item.liter_per_pcs?.toString() || "",
       harga_beli: item.harga_beli.toString(),
       harga_jual: item.harga_jual.toString(),
       sumber: item.sumber,
@@ -297,8 +324,41 @@ export default function StokPage() {
     return numA - numB;
   });
 
+  // Helper untuk render stok
+  const renderStok = (item: Sparepart) => {
+    if (item.base_unit === "LITER") {
+      return `${item.stok_base} LITER`;
+    }
+
+    if (item.pcs_per_pack && item.pcs_per_pack > 1) {
+      const packQty = Math.floor(item.stok_base / item.pcs_per_pack);
+      const sisaPcs = item.stok_base % item.pcs_per_pack;
+      return (
+        <>
+          {packQty} {item.pack_label}
+          {sisaPcs > 0 && ` + ${sisaPcs} PCS`}
+          <div className="text-xs text-gray-400">= {item.stok_base} PCS</div>
+        </>
+      );
+    }
+
+    if (item.liter_per_pcs) {
+      const totalLiter = item.stok_base * item.liter_per_pcs;
+      return (
+        <>
+          {item.stok_base} Botol
+          <div className="text-xs text-gray-400">
+            = {totalLiter} Liter ({item.liter_per_pcs}L/btl)
+          </div>
+        </>
+      );
+    }
+
+    return `${item.stok_base} PCS`;
+  };
+
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-900 via-gray-800 to-black p-6 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black p-6 text-white">
       <h1 className="text-2xl font-bold mb-6">Stok Sparepart</h1>
 
       {/* FORM */}
@@ -308,7 +368,7 @@ export default function StokPage() {
         className="bg-gray-900 border border-gray-700 rounded-xl p-6 mb-8 grid md:grid-cols-2 gap-4"
       >
         <input
-          placeholder="No Sparepart"
+          placeholder="No Sparepart *"
           className="input"
           value={form.no_sparepart}
           onChange={(e) => setForm({ ...form, no_sparepart: e.target.value })}
@@ -316,35 +376,20 @@ export default function StokPage() {
         />
 
         <input
-          type="number"
-          placeholder="Isi per pack (opsional)"
-          className="input"
-          disabled={form.satuan === "LITER"}
-          value={form.pack_size}
-          onChange={(e) => setForm({ ...form, pack_size: e.target.value })}
-        />
-
-        <input
-          placeholder="Label pack (BOTOL / PACK / DRUM)"
-          className="input"
-          disabled={form.satuan === "LITER"}
-          value={form.pack_label}
-          onChange={(e) => setForm({ ...form, pack_label: e.target.value })}
-        />
-
-        <input
-          placeholder="Nama Part"
+          placeholder="Nama Part *"
           className="input"
           value={form.nama_sparepart}
           onChange={(e) => setForm({ ...form, nama_sparepart: e.target.value })}
           required
         />
+
         <input
-          placeholder="NGK No"
+          placeholder="NGK No (opsional)"
           className="input"
           value={form.ngk_no}
           onChange={(e) => setForm({ ...form, ngk_no: e.target.value })}
         />
+
         <input
           placeholder="Merk"
           className="input"
@@ -358,33 +403,81 @@ export default function StokPage() {
           onChange={(e) => setForm({ ...form, kategori: e.target.value })}
           required
         >
-          <option value="">Pilih Kategori</option>
+          <option value="">Pilih Kategori *</option>
           {KATEGORI.map((k) => (
             <option key={k}>{k}</option>
           ))}
         </select>
 
+        <select
+          className="input"
+          value={form.satuan}
+          onChange={(e) => {
+            setForm({
+              ...form,
+              satuan: e.target.value,
+              // Reset pack & liter saat ganti satuan
+              pack_size: "",
+              pack_label: "",
+              liter_per_pcs: "",
+            });
+          }}
+          required
+        >
+          <option value="">Pilih Satuan *</option>
+          <option value="PCS">PCS (satuan barang)</option>
+          <option value="LITER">LITER (oli curah)</option>
+        </select>
+
         <input
           type="number"
-          placeholder="Stok"
+          step="any"
+          placeholder={
+            form.satuan === "LITER" ? "Stok (boleh desimal) *" : "Stok *"
+          }
           className="input"
           value={form.stok}
           onChange={(e) => setForm({ ...form, stok: e.target.value })}
           required
         />
 
-        <select
+        {/* PACK - hanya untuk PCS */}
+        <input
+          type="number"
+          placeholder="Isi per pack (kosongkan jika bukan pack)"
           className="input"
-          value={form.satuan}
-          onChange={(e) => setForm({ ...form, satuan: e.target.value })}
-          required
-        >
-          <option value="" disabled>
-            Pilih satuan
-          </option>
-          <option value="PCS">PCS</option>
-          <option value="LITER">LITER</option>
-        </select>
+          disabled={form.satuan !== "PCS"}
+          value={form.pack_size}
+          onChange={(e) => setForm({ ...form, pack_size: e.target.value })}
+          title="Untuk barang seperti busi per box, sekring per pack, dll"
+        />
+
+        <input
+          placeholder="Label pack (BOX/PACK/KARTON/DUS)"
+          className="input"
+          disabled={
+            form.satuan !== "PCS" ||
+            !form.pack_size ||
+            Number(form.pack_size) <= 1
+          }
+          value={form.pack_label}
+          onChange={(e) => setForm({ ...form, pack_label: e.target.value })}
+        />
+
+        {/* LITER PER PCS - hanya untuk PCS (oli botol/drum) */}
+        <input
+          type="number"
+          step="0.1"
+          placeholder="Liter per Botol/Drum (untuk oli botolan)"
+          className="input"
+          disabled={
+            form.satuan !== "PCS" ||
+            (!!form.pack_size && Number(form.pack_size) > 1)
+          }
+          value={form.liter_per_pcs}
+          onChange={(e) => setForm({ ...form, liter_per_pcs: e.target.value })}
+          title="Contoh: oli 1 liter, 5 liter, drum 200 liter"
+        />
 
         <input
           type="number"
@@ -393,6 +486,7 @@ export default function StokPage() {
           value={form.harga_beli}
           onChange={(e) => setForm({ ...form, harga_beli: e.target.value })}
         />
+
         <input
           type="number"
           placeholder="Harga Jual"
@@ -402,22 +496,26 @@ export default function StokPage() {
         />
 
         <textarea
-          placeholder="Sumber"
+          placeholder="Sumber / Supplier (opsional)"
           className="input md:col-span-2"
+          rows={2}
           value={form.sumber}
           onChange={(e) => setForm({ ...form, sumber: e.target.value })}
         />
 
-        <button className="md:col-span-2 bg-red-600 hover:bg-red-700 py-2 rounded font-semibold">
-          {editId ? "Update Sparepart" : "Tambah Sparepart"}
+        <button
+          type="submit"
+          className="md:col-span-2 bg-red-600 hover:bg-red-700 py-3 rounded font-semibold transition"
+        >
+          {editId ? "💾 Update Sparepart" : "➕ Tambah Sparepart"}
         </button>
       </form>
 
-      {/* SEARCH */}
-      <div className="flex items-center justify-between">
+      {/* SEARCH & FILTER */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
         <input
-          placeholder="Cari sparepart..."
-          className="mb-4 bg-gray-800 border border-gray-700 rounded px-4 py-2"
+          placeholder="🔍 Cari sparepart..."
+          className="w-full md:w-96 bg-gray-800 border border-gray-700 rounded px-4 py-2"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -435,10 +533,11 @@ export default function StokPage() {
             <option value="yearly">Tahun Ini</option>
           </select>
           <button
-            className="px-4 py-2 bg-green-400 rounded-md"
+            type="button"
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-md transition font-semibold"
             onClick={() => exportToExcel(sortedData, "data_stok.xlsx")}
           >
-            Export Excel
+            📊 Export Excel
           </button>
         </div>
       </div>
@@ -453,14 +552,14 @@ export default function StokPage() {
               <th className="px-4 py-3 text-left">Nama</th>
               <th className="px-4 py-3 text-left">Kategori</th>
               <th className="px-4 py-3 text-center">Stok</th>
-              <th className="px-4 py-3 text-left">Harga Jual</th>
+              <th className="px-4 py-3 text-right">Harga Jual</th>
               <th className="px-4 py-3 text-center">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
-            {filteredData.length === 0 ? (
+            {sortedData.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center">
+                <td colSpan={7} className="px-4 py-12 text-center">
                   <div className="flex flex-col items-center gap-3 text-gray-400">
                     <svg
                       className="w-16 h-16"
@@ -476,10 +575,14 @@ export default function StokPage() {
                       />
                     </svg>
                     <p className="text-lg font-medium text-gray-300">
-                      Belum Ada Stok Sparepart
+                      {search
+                        ? "Tidak ada hasil pencarian"
+                        : "Belum Ada Stok Sparepart"}
                     </p>
                     <p className="text-sm text-gray-500">
-                      Data sparepart akan muncul di sini
+                      {search
+                        ? `Untuk pencarian: "${search}"`
+                        : "Data sparepart akan muncul di sini"}
                     </p>
                   </div>
                 </td>
@@ -487,52 +590,39 @@ export default function StokPage() {
             ) : (
               sortedData.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-800 transition">
-                  <td className="px-4 py-3 font-medium">
+                  <td className="px-4 py-3 font-mono font-medium text-blue-400">
                     {item.kode_sparepart}
                   </td>
-                  <td className="px-4 py-3">{item.no_sparepart}</td>
+                  <td className="px-4 py-3 text-gray-300">
+                    {item.no_sparepart}
+                  </td>
                   <td className="px-4 py-3 font-medium">
                     {item.nama_sparepart}
                   </td>
-                  <td className="px-4 py-3">{item.kategori}</td>
-                  <td className="px-4 py-3 text-center">
-                    {item.base_unit === "PCS" &&
-                    item.pcs_per_pack &&
-                    item.pcs_per_pack > 1 ? (
-                      <>
-                        {Math.floor(item.stok_base / item.pcs_per_pack)}{" "}
-                        {item.pack_label}
-                        <div className="text-xs text-gray-400">
-                          = {item.stok_base} PCS
-                        </div>
-                      </>
-                    ) : item.base_unit === "PCS" ? (
-                      <>{item.stok_base} PCS</>
-                    ) : (
-                      <>{item.stok_base} LITER</>
-                    )}
+                  <td className="px-4 py-3 text-gray-400">{item.kategori}</td>
+                  <td className="px-4 py-3 text-center font-medium">
+                    {renderStok(item)}
                   </td>
-
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 text-right font-semibold text-green-400">
                     Rp {item.harga_jual.toLocaleString("id-ID")}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-center gap-2">
                       <button
                         onClick={() => setDetail(item)}
-                        className="btn-view"
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs transition"
                       >
                         Detail
                       </button>
                       <button
                         onClick={() => handleEdit(item)}
-                        className="btn-edit"
+                        className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 rounded text-xs transition"
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => handleDelete(item.id)}
-                        className="btn-delete"
+                        className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-xs transition"
                       >
                         Hapus
                       </button>
@@ -547,84 +637,148 @@ export default function StokPage() {
 
       {/* MODAL DETAIL */}
       {detail && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-lg">
-            <h2 className="text-lg font-bold mb-4">Detail Sparepart</h2>
-            <div className="space-y-2 text-sm">
-              <table className="w-full text-sm border border-gray-700">
-                <tbody>
-                  <tr>
-                    <td className="border p-2 font-semibold">Kode</td>
-                    <td className="border p-2">{detail.kode_sparepart}</td>
-                  </tr>
-                  <tr>
-                    <td className="border p-2 font-semibold">No Part</td>
-                    <td className="border p-2">{detail.no_sparepart}</td>
-                  </tr>
-                  <tr>
-                    <td className="border p-2 font-semibold">Ngk No</td>
-                    <td className="border p-2">{detail.ngk_no}</td>
-                  </tr>
-                  <tr>
-                    <td className="border p-2 font-semibold">Nama</td>
-                    <td className="border p-2">{detail.nama_sparepart}</td>
-                  </tr>
-                  <tr>
-                    <td className="border p-2 font-semibold">Merek</td>
-                    <td className="border p-2">{detail.merk}</td>
-                  </tr>
-                  <tr>
-                    <td className="border p-2 font-semibold">Kode</td>
-                    <td className="border p-2">{detail.kode_sparepart}</td>
-                  </tr>
-                  <tr>
-                    <td className="border p-2 font-semibold">Kategori</td>
-                    <td className="border p-2">{detail.kategori}</td>
-                  </tr>
-                  <tr>
-                    <td className="border p-2 font-semibold">Stok</td>
-                    <td className="border p-2">
-                      {detail.base_unit === "PCS" && detail.pcs_per_pack ? (
-                        <>
-                          {Math.floor(detail.stok_base / detail.pcs_per_pack)}{" "}
-                          PACK
-                          <div className="text-xs text-gray-400">
-                            = {detail.stok_base} PCS
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          {detail.stok_base} {detail.base_unit}
-                        </>
-                      )}
-                    </td>
-                  </tr>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4 text-blue-400">
+              📋 Detail Sparepart
+            </h2>
 
-                  <tr>
-                    <td className="border p-2 font-semibold">Harga Beli</td>
-                    <td className="border p-2">
-                      Rp {detail.harga_beli.toLocaleString("id-ID")}
+            <table className="w-full text-sm border-collapse">
+              <tbody>
+                <tr className="border-b border-gray-700">
+                  <td className="py-3 px-4 font-semibold text-gray-400 w-1/3">
+                    Kode
+                  </td>
+                  <td className="py-3 px-4 font-mono text-blue-400">
+                    {detail.kode_sparepart}
+                  </td>
+                </tr>
+                <tr className="border-b border-gray-700">
+                  <td className="py-3 px-4 font-semibold text-gray-400">
+                    No Part
+                  </td>
+                  <td className="py-3 px-4">{detail.no_sparepart}</td>
+                </tr>
+                {detail.ngk_no && (
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 px-4 font-semibold text-gray-400">
+                      NGK No
+                    </td>
+                    <td className="py-3 px-4">{detail.ngk_no}</td>
+                  </tr>
+                )}
+                <tr className="border-b border-gray-700">
+                  <td className="py-3 px-4 font-semibold text-gray-400">
+                    Nama
+                  </td>
+                  <td className="py-3 px-4 font-medium">
+                    {detail.nama_sparepart}
+                  </td>
+                </tr>
+                <tr className="border-b border-gray-700">
+                  <td className="py-3 px-4 font-semibold text-gray-400">
+                    Merk
+                  </td>
+                  <td className="py-3 px-4">{detail.merk}</td>
+                </tr>
+                <tr className="border-b border-gray-700">
+                  <td className="py-3 px-4 font-semibold text-gray-400">
+                    Kategori
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className="px-2 py-1 bg-gray-800 rounded text-xs">
+                      {detail.kategori}
+                    </span>
+                  </td>
+                </tr>
+                <tr className="border-b border-gray-700">
+                  <td className="py-3 px-4 font-semibold text-gray-400">
+                    Satuan Dasar
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className="px-2 py-1 bg-purple-900/50 text-purple-300 rounded text-xs">
+                      {detail.base_unit}
+                    </span>
+                  </td>
+                </tr>
+                <tr className="border-b border-gray-700 bg-gray-800/50">
+                  <td className="py-3 px-4 font-semibold text-gray-400">
+                    Stok
+                  </td>
+                  <td className="py-3 px-4 font-bold text-green-400">
+                    {renderStok(detail)}
+                  </td>
+                </tr>
+                {detail.pcs_per_pack && (
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 px-4 font-semibold text-gray-400">
+                      Info Pack
+                    </td>
+                    <td className="py-3 px-4">
+                      1 {detail.pack_label} = {detail.pcs_per_pack} PCS
                     </td>
                   </tr>
-                  <tr>
-                    <td className="border p-2 font-semibold">Harga Jual</td>
-                    <td className="border p-2">
-                      Rp {detail.harga_jual.toLocaleString("id-ID")}
+                )}
+                {detail.liter_per_pcs && (
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 px-4 font-semibold text-gray-400">
+                      Volume per Unit
+                    </td>
+                    <td className="py-3 px-4">
+                      {detail.liter_per_pcs} Liter/Botol
                     </td>
                   </tr>
+                )}
+                <tr className="border-b border-gray-700">
+                  <td className="py-3 px-4 font-semibold text-gray-400">
+                    Harga Beli
+                  </td>
+                  <td className="py-3 px-4">
+                    Rp {detail.harga_beli.toLocaleString("id-ID")}
+                  </td>
+                </tr>
+                <tr className="border-b border-gray-700">
+                  <td className="py-3 px-4 font-semibold text-gray-400">
+                    Harga Jual
+                  </td>
+                  <td className="py-3 px-4 font-semibold text-green-400">
+                    Rp {detail.harga_jual.toLocaleString("id-ID")}
+                  </td>
+                </tr>
+                <tr className="border-b border-gray-700">
+                  <td className="py-3 px-4 font-semibold text-gray-400">
+                    Margin
+                  </td>
+                  <td className="py-3 px-4 text-yellow-400">
+                    Rp{" "}
+                    {(detail.harga_jual - detail.harga_beli).toLocaleString(
+                      "id-ID"
+                    )}{" "}
+                    (
+                    {(
+                      ((detail.harga_jual - detail.harga_beli) /
+                        detail.harga_beli) *
+                      100
+                    ).toFixed(1)}
+                    %)
+                  </td>
+                </tr>
+                {detail.sumber && (
                   <tr>
-                    <td className="border p-2 font-semibold">sumber</td>
-                    <td className="border p-2">{detail.sumber}</td>
+                    <td className="py-3 px-4 font-semibold text-gray-400 align-top">
+                      Sumber
+                    </td>
+                    <td className="py-3 px-4 text-gray-300">{detail.sumber}</td>
                   </tr>
-                </tbody>
-              </table>
-            </div>
+                )}
+              </tbody>
+            </table>
 
             <button
               onClick={() => setDetail(null)}
-              className="bg-red-600 mt-6 w-full border border-gray-600 py-2 rounded hover:bg-gray-800"
+              className="bg-gray-700 hover:bg-gray-600 mt-6 w-full py-2 rounded transition font-semibold"
             >
-              Tutup
+              ✕ Tutup
             </button>
           </div>
         </div>
